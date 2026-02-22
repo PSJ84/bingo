@@ -98,8 +98,9 @@
       align-items: center;
       gap: 8px;
     }
-    .player-list .crown::before { content: '👑'; }
-    .player-list .member::before { content: '🎮'; }
+    .player-list li.disconnected { opacity: 0.4; }
+    .player-list .crown::before { content: '\uD83D\uDC51'; }
+    .player-list .member::before { content: '\uD83C\uDFAE'; }
 
     .btn-start {
       margin-top: 16px;
@@ -120,6 +121,46 @@
       margin: 8px 0;
       text-align: center;
     }
+
+    /* ── 승리 줄 수 선택 ── */
+    .wl-selector {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin: 8px 0;
+    }
+    .wl-btn {
+      padding: 10px 18px;
+      border: 2px solid #333;
+      border-radius: 10px;
+      background: var(--card);
+      color: var(--text);
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .wl-btn.active {
+      border-color: var(--gold);
+      background: rgba(245, 197, 24, 0.15);
+      color: var(--gold);
+    }
+    .wl-btn:active { transform: scale(0.95); }
+
+    /* ── 랭킹 ── */
+    .ranking-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: var(--card);
+      border-radius: 8px;
+      margin: 4px 0;
+      font-size: 0.95rem;
+    }
+    .ranking-item .rank-name { flex: 1; }
+    .ranking-item .rank-stats { color: var(--gold); font-weight: 700; }
+    .ranking-item .rank-streak { color: var(--accent); font-size: 0.8rem; margin-left: 8px; }
 
     /* ── 게임 화면 ── */
     .game-header {
@@ -187,6 +228,7 @@
       min-width: 80px;
     }
     .score-card.me { border: 2px solid var(--gold); }
+    .score-card.disconnected { opacity: 0.4; }
     .score-name { font-size: 0.85rem; color: #aaa; }
     .score-lines { font-size: 1.4rem; font-weight: 800; color: var(--gold); }
     .score-label { font-size: 0.7rem; color: #888; }
@@ -323,6 +365,17 @@
       font-size: 0.9rem;
       margin: 8px 0;
     }
+
+    .btn-restart {
+      background: none;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      padding: 6px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      margin: 4px 0;
+    }
   </style>
 </head>
 <body>
@@ -330,7 +383,7 @@
   <!-- 메인 로비 -->
   <div id="screen-lobby" class="screen active">
     <h1><span class="emoji">🎱</span> 가족 빙고</h1>
-    <p class="sub-text">1~25 숫자 빙고 | 3줄 완성하면 승리!</p>
+    <p class="sub-text">1~25 숫자 빙고 | 함께 즐기는 가족 게임!</p>
 
     <input type="text" id="input-name" placeholder="이름을 입력하세요" maxlength="8">
 
@@ -353,7 +406,31 @@
     <h1>🎱 대기실</h1>
     <p class="info-text">아래 코드를 다른 기기에서 입력하세요!</p>
     <div class="room-code" id="display-code">----</div>
+
+    <!-- 승리 줄 수 선택 (방장용) -->
+    <div id="win-lines-host" style="display:none; margin:8px 0; text-align:center;">
+      <p style="color:#aaa; font-size:0.9rem; margin-bottom:6px;">승리 조건</p>
+      <div class="wl-selector">
+        <button class="wl-btn" data-lines="2" onclick="setWinLines(2)">2줄</button>
+        <button class="wl-btn active" data-lines="3" onclick="setWinLines(3)">3줄</button>
+        <button class="wl-btn" data-lines="4" onclick="setWinLines(4)">4줄</button>
+        <button class="wl-btn" data-lines="5" onclick="setWinLines(5)">5줄</button>
+      </div>
+    </div>
+
+    <!-- 승리 줄 수 표시 (비방장용) -->
+    <p id="win-lines-guest" class="info-text" style="display:none;">
+      승리 조건: <strong id="win-lines-value">3</strong>줄
+    </p>
+
     <ul class="player-list" id="player-list"></ul>
+
+    <!-- 랭킹 -->
+    <div id="rankings-section" style="display:none; width:100%; max-width:320px; margin-top:12px;">
+      <p style="text-align:center; color:#aaa; font-size:0.9rem; margin-bottom:6px;">🏆 랭킹</p>
+      <div id="rankings-list"></div>
+    </div>
+
     <button class="btn-start" id="btn-start" style="display:none" onclick="startGame()">
       게임 시작! 🎉
     </button>
@@ -369,6 +446,10 @@
       <div class="scoreboard" id="scoreboard"></div>
 
       <div class="called-numbers" id="called-numbers"></div>
+
+      <button class="btn-restart" id="btn-restart" style="display:none" onclick="restartGame()">
+        게임 재시작
+      </button>
     </div>
 
     <div class="board-container">
@@ -382,6 +463,7 @@
       <div class="winner-emoji" id="win-emoji">🏆</div>
       <div class="winner-name" id="win-name">-</div>
       <div class="winner-msg" id="win-msg">빙고!</div>
+      <div id="win-rankings" style="margin:12px 0;"></div>
       <button class="btn-new-game" id="btn-new-game" style="display:none" onclick="newGame()">
         한 판 더! 🎲
       </button>
@@ -401,6 +483,95 @@
     let calledNumbers = [];
     let isHost = false;
     let gameActive = false;
+    let winLines = 3;
+    let myPrevBingoLines = 0;
+
+    // ── 플레이어 식별 (localStorage) ──
+    let playerId = localStorage.getItem('bingo-player-id') || null;
+    let savedRoomCode = localStorage.getItem('bingo-room-code') || null;
+    let savedPlayerName = localStorage.getItem('bingo-player-name') || null;
+
+    // ── Web Audio API 효과음 ──
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+
+    function getAudioCtx() {
+      if (!audioCtx) audioCtx = new AudioCtx();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    }
+
+    function playDing() {
+      const ctx = getAudioCtx();
+      const t = ctx.currentTime;
+      [523, 659].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, t + i * 0.15);
+        gain.gain.setValueAtTime(0.3, t + i * 0.15);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + i * 0.15 + 0.3);
+        osc.start(t + i * 0.15);
+        osc.stop(t + i * 0.15 + 0.3);
+      });
+    }
+
+    function playClick() {
+      const ctx = getAudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(800, ctx.currentTime);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.08);
+    }
+
+    function playBingoLine() {
+      const ctx = getAudioCtx();
+      const t = ctx.currentTime;
+      [523, 659, 784].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, t + i * 0.12);
+        gain.gain.setValueAtTime(0.25, t + i * 0.12);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + i * 0.12 + 0.3);
+        osc.start(t + i * 0.12);
+        osc.stop(t + i * 0.12 + 0.3);
+      });
+    }
+
+    function playFanfare() {
+      const ctx = getAudioCtx();
+      const t = ctx.currentTime;
+      const chords = [
+        [523, 659, 784],
+        [587, 740, 880],
+        [523, 659, 784, 1047],
+      ];
+      chords.forEach((chord, ci) => {
+        chord.forEach(freq => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, t + ci * 0.3);
+          gain.gain.setValueAtTime(0.15, t + ci * 0.3);
+          gain.gain.exponentialRampToValueAtTime(0.01, t + ci * 0.3 + 0.5);
+          osc.start(t + ci * 0.3);
+          osc.stop(t + ci * 0.3 + 0.5);
+        });
+      });
+    }
 
     // ── 화면 전환 ──
     function showScreen(id) {
@@ -421,8 +592,9 @@
     function createRoom() {
       const name = document.getElementById('input-name').value.trim();
       if (!name) { showToast('이름을 입력해주세요!'); return; }
+      getAudioCtx();
       isHost = true;
-      socket.emit('create-room', name);
+      socket.emit('create-room', { playerName: name, playerId });
     }
 
     function joinRoom() {
@@ -430,10 +602,12 @@
       const code = document.getElementById('input-code').value.trim().toUpperCase();
       if (!name) { showToast('이름을 입력해주세요!'); return; }
       if (!code || code.length < 4) { showToast('방 코드를 입력해주세요!'); return; }
-      socket.emit('join-room', { code, playerName: name });
+      getAudioCtx();
+      socket.emit('join-room', { code, playerName: name, playerId });
     }
 
     function leaveRoom() {
+      localStorage.removeItem('bingo-room-code');
       location.reload();
     }
 
@@ -450,29 +624,69 @@
       document.getElementById('modal-win').classList.remove('active');
     }
 
+    function setWinLines(lines) {
+      socket.emit('set-win-lines', lines);
+    }
+
+    function restartGame() {
+      if (!isHost) return;
+      if (confirm('정말 게임을 재시작하시겠어요?')) {
+        socket.emit('new-game');
+      }
+    }
+
     // ── Socket 이벤트 ──
-    socket.on('room-created', ({ code }) => {
+    socket.on('room-created', ({ code, playerName, playerId: pid }) => {
+      playerId = pid;
+      localStorage.setItem('bingo-player-id', pid);
+      localStorage.setItem('bingo-room-code', code);
+      localStorage.setItem('bingo-player-name', playerName);
+      isHost = true;
       document.getElementById('display-code').textContent = code;
       showScreen('screen-waiting');
     });
 
-    socket.on('room-joined', ({ code }) => {
+    socket.on('room-joined', ({ code, playerName, playerId: pid, isHost: host }) => {
+      playerId = pid;
+      localStorage.setItem('bingo-player-id', pid);
+      localStorage.setItem('bingo-room-code', code);
+      localStorage.setItem('bingo-player-name', playerName);
+      isHost = host;
       document.getElementById('display-code').textContent = code;
       showScreen('screen-waiting');
     });
 
-    socket.on('player-list', ({ players }) => {
+    socket.on('player-list', ({ players, code, winLines: wl, rankings }) => {
+      // 플레이어 목록
       const list = document.getElementById('player-list');
       list.innerHTML = '';
+      let connectedCount = 0;
       players.forEach(p => {
+        if (p.connected) connectedCount++;
         const li = document.createElement('li');
-        li.innerHTML = `<span class="${p.isHost ? 'crown' : 'member'}"></span> ${escHtml(p.name)} ${p.isHost ? '<span style="color:#888;font-size:0.8rem">(방장)</span>' : ''}`;
+        if (!p.connected) li.classList.add('disconnected');
+        li.innerHTML = `<span class="${p.isHost ? 'crown' : 'member'}"></span> ${escHtml(p.name)} ${p.isHost ? '<span style="color:#888;font-size:0.8rem">(방장)</span>' : ''} ${!p.connected ? '<span style="color:#888;font-size:0.8rem">(끊김)</span>' : ''}`;
         list.appendChild(li);
       });
 
+      // 승리 줄 수 표시
+      winLines = wl;
+      if (isHost) {
+        document.getElementById('win-lines-host').style.display = 'block';
+        document.getElementById('win-lines-guest').style.display = 'none';
+        document.querySelectorAll('.wl-btn').forEach(btn => {
+          btn.classList.toggle('active', parseInt(btn.dataset.lines) === wl);
+        });
+      } else {
+        document.getElementById('win-lines-host').style.display = 'none';
+        document.getElementById('win-lines-guest').style.display = 'block';
+        document.getElementById('win-lines-value').textContent = wl;
+      }
+
+      // 시작 버튼
       const btnStart = document.getElementById('btn-start');
       const waitMsg = document.getElementById('waiting-msg');
-      if (isHost && players.length >= 2) {
+      if (isHost && connectedCount >= 2) {
         btnStart.style.display = 'block';
         waitMsg.style.display = 'none';
       } else if (isHost) {
@@ -484,9 +698,21 @@
         waitMsg.textContent = '방장이 게임을 시작할 때까지 기다려주세요...';
         waitMsg.style.display = 'block';
       }
+
+      // 랭킹
+      renderRankings(rankings);
     });
 
-    socket.on('game-started', ({ board, turnOrder, myTurnIndex: mti, currentTurn: ct }) => {
+    socket.on('win-lines-updated', (lines) => {
+      winLines = lines;
+      document.querySelectorAll('.wl-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.lines) === lines);
+      });
+      document.getElementById('win-lines-value').textContent = lines;
+      showToast(`승리 조건이 ${lines}줄로 변경되었어요!`);
+    });
+
+    socket.on('game-started', ({ board, turnOrder, myTurnIndex: mti, currentTurn: ct, winLines: wl, isHost: host }) => {
       myBoard = board;
       myMarked = Array.from({ length: 5 }, () => Array(5).fill(false));
       myTurnIndex = mti;
@@ -494,12 +720,46 @@
       turnNames = turnOrder;
       calledNumbers = [];
       gameActive = true;
+      winLines = wl;
+      isHost = host;
+      myPrevBingoLines = 0;
 
       showScreen('screen-game');
       renderBoard();
       renderTurn();
       renderScoreboard([]);
       document.getElementById('called-numbers').innerHTML = '';
+      document.getElementById('btn-restart').style.display = isHost ? 'inline-block' : 'none';
+
+      if (myTurnIndex === 0) {
+        playDing();
+      }
+    });
+
+    socket.on('game-restored', (data) => {
+      myBoard = data.board;
+      myMarked = data.marked;
+      myTurnIndex = data.myTurnIndex;
+      currentTurn = data.currentTurn;
+      turnNames = data.turnOrder;
+      calledNumbers = data.calledNumbers;
+      winLines = data.winLines;
+      isHost = data.isHost;
+      myPrevBingoLines = data.bingoLines;
+      gameActive = !data.winner;
+
+      showScreen('screen-game');
+      renderBoard();
+      renderTurn();
+      renderCalledNumbers();
+      renderScoreboard(data.playerStates);
+      document.getElementById('btn-restart').style.display = isHost ? 'inline-block' : 'none';
+
+      if (data.winner) {
+        showWinner(data.winner);
+      }
+
+      showToast('게임에 다시 접속했어요!');
     });
 
     socket.on('number-called', (data) => {
@@ -512,24 +772,88 @@
       renderCalledNumbers();
       renderScoreboard(data.playerStates);
 
+      // 빙고 줄 완성 효과음
+      if (data.myBingoLines > myPrevBingoLines) {
+        playBingoLine();
+      }
+      myPrevBingoLines = data.myBingoLines;
+
+      // 내 차례 알림
+      if (!data.winner && currentTurn === myTurnIndex) {
+        playDing();
+      }
+
       if (data.winner) {
         gameActive = false;
-        showWinner(data.winner);
+        playFanfare();
+        showWinner(data.winner, data.rankings);
+      }
+    });
+
+    socket.on('turn-updated', ({ currentTurn: ct }) => {
+      currentTurn = ct;
+      renderTurn();
+      renderBoard();
+      if (currentTurn === myTurnIndex && gameActive) {
+        playDing();
       }
     });
 
     socket.on('game-reset', () => {
       gameActive = false;
-      showScreen('screen-waiting');
+      myPrevBingoLines = 0;
       document.getElementById('modal-win').classList.remove('active');
+      showScreen('screen-waiting');
     });
 
-    socket.on('player-left', ({ name }) => {
-      showToast(`${name} 님이 나갔어요`);
+    socket.on('player-disconnected', ({ name }) => {
+      showToast(`${name} 님의 연결이 끊겼어요`);
+    });
+
+    socket.on('player-reconnected', ({ name }) => {
+      showToast(`${name} 님이 다시 접속했어요!`);
     });
 
     socket.on('error-msg', (msg) => {
       showToast(msg);
+    });
+
+    // ── 페이지 로드 시 자동 재접속 ──
+    window.addEventListener('load', () => {
+      if (playerId && savedRoomCode && savedPlayerName) {
+        getAudioCtx();
+        socket.emit('join-room', {
+          code: savedRoomCode,
+          playerName: savedPlayerName,
+          playerId,
+        });
+      }
+
+      // 뒤로가기 방지
+      history.pushState(null, '', location.href);
+      window.addEventListener('popstate', () => {
+        if (gameActive) {
+          history.pushState(null, '', location.href);
+          showToast('게임 중에는 뒤로 갈 수 없어요!');
+        }
+      });
+    });
+
+    // ── 새로고침 방지 ──
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'F5' || (e.ctrlKey && (e.key === 'r' || e.key === 'R'))) {
+        if (gameActive) {
+          e.preventDefault();
+          showToast('게임 중에는 새로고침할 수 없어요!');
+        }
+      }
+    });
+
+    window.addEventListener('beforeunload', (e) => {
+      if (gameActive) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
     });
 
     // ── 렌더링 ──
@@ -537,7 +861,6 @@
       const boardEl = document.getElementById('bingo-board');
       boardEl.innerHTML = '';
 
-      // 빙고 라인 계산 (시각 표시용)
       const bingoSet = getBingoCells(myMarked);
       const isMyTurn = gameActive && (currentTurn === myTurnIndex);
 
@@ -568,6 +891,7 @@
 
     function callNumber(num) {
       if (!gameActive) return;
+      playClick();
       socket.emit('call-number', num);
     }
 
@@ -615,7 +939,7 @@
       el.innerHTML = '';
       playerStates.forEach(ps => {
         el.innerHTML += `
-          <div class="score-card ${ps.isMe ? 'me' : ''}">
+          <div class="score-card ${ps.isMe ? 'me' : ''} ${ps.connected === false ? 'disconnected' : ''}">
             <div class="score-name">${escHtml(ps.name)}</div>
             <div class="score-lines">${ps.bingoLines}</div>
             <div class="score-label">줄</div>
@@ -623,38 +947,70 @@
       });
     }
 
-    function showWinner(winner) {
+    function renderRankings(rankings) {
+      const section = document.getElementById('rankings-section');
+      const listEl = document.getElementById('rankings-list');
+      if (!rankings || rankings.length === 0) {
+        section.style.display = 'none';
+        return;
+      }
+      section.style.display = 'block';
+      listEl.innerHTML = '';
+      const medals = ['🥇', '🥈', '🥉'];
+      rankings.forEach((r, i) => {
+        const medal = medals[i] || '';
+        const streakText = r.currentStreak >= 2 ? `${r.currentStreak}연승!` : '';
+        listEl.innerHTML += `
+          <div class="ranking-item">
+            <span class="rank-name">${medal} ${escHtml(r.name)}</span>
+            <span class="rank-stats">${r.wins}승 ${r.losses}패</span>
+            ${streakText ? `<span class="rank-streak">${streakText}</span>` : ''}
+          </div>`;
+      });
+    }
+
+    function showWinner(winner, rankings) {
       const emojis = ['🏆', '🎉', '🥳', '⭐', '👑'];
       document.getElementById('win-emoji').textContent = emojis[Math.floor(Math.random() * emojis.length)];
       document.getElementById('win-name').textContent = winner.name;
       document.getElementById('win-msg').textContent = `${winner.lines}줄 빙고 달성! 축하해요!`;
 
-      if (isHost) {
-        document.getElementById('btn-new-game').style.display = 'inline-block';
+      // 모달 내 랭킹
+      const winRankEl = document.getElementById('win-rankings');
+      if (rankings && rankings.length > 0) {
+        const medals = ['🥇', '🥈', '🥉'];
+        winRankEl.innerHTML = '<p style="color:#aaa; font-size:0.85rem; margin-bottom:6px;">현재 전적</p>';
+        rankings.forEach((r, i) => {
+          const medal = medals[i] || '';
+          const streakText = r.currentStreak >= 2 ? ` ${r.currentStreak}연승!` : '';
+          winRankEl.innerHTML += `
+            <div class="ranking-item">
+              <span class="rank-name">${medal} ${escHtml(r.name)}</span>
+              <span class="rank-stats">${r.wins}승 ${r.losses}패</span>
+              ${streakText ? `<span class="rank-streak">${streakText}</span>` : ''}
+            </div>`;
+        });
       } else {
-        document.getElementById('btn-new-game').style.display = 'none';
+        winRankEl.innerHTML = '';
       }
 
+      document.getElementById('btn-new-game').style.display = isHost ? 'inline-block' : 'none';
       document.getElementById('modal-win').classList.add('active');
     }
 
     // 빙고 완성된 셀 집합 반환
     function getBingoCells(marked) {
       const cells = new Set();
-
-      // 가로
       for (let r = 0; r < 5; r++) {
         if (marked[r].every(v => v)) {
           for (let c = 0; c < 5; c++) cells.add(`${r},${c}`);
         }
       }
-      // 세로
       for (let c = 0; c < 5; c++) {
         let ok = true;
         for (let r = 0; r < 5; r++) { if (!marked[r][c]) { ok = false; break; } }
         if (ok) { for (let r = 0; r < 5; r++) cells.add(`${r},${c}`); }
       }
-      // 대각선
       let d1 = true, d2 = true;
       for (let i = 0; i < 5; i++) {
         if (!marked[i][i]) d1 = false;
@@ -662,7 +1018,6 @@
       }
       if (d1) { for (let i = 0; i < 5; i++) cells.add(`${i},${i}`); }
       if (d2) { for (let i = 0; i < 5; i++) cells.add(`${i},${4 - i}`); }
-
       return cells;
     }
 

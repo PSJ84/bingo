@@ -2,6 +2,8 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
@@ -9,25 +11,60 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ── 전적 파일 저장/로드 ──
+const STATS_FILE = path.join(__dirname, 'stats.json');
+
+function loadStats() {
+  try {
+    if (fs.existsSync(STATS_FILE)) {
+      return JSON.parse(fs.readFileSync(STATS_FILE, 'utf-8'));
+    }
+  } catch (e) {
+    console.error('전적 파일 로드 실패:', e);
+  }
+  return {};
+}
+
+function saveStats() {
+  try {
+    const data = {};
+    for (const [code, room] of rooms) {
+      if (room.records.size > 0) {
+        data[code] = {
+          winLines: room.winLines,
+          players: Object.fromEntries(room.records),
+          lastActivity: new Date().toISOString(),
+        };
+      }
+    }
+    fs.writeFileSync(STATS_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('전적 파일 저장 실패:', e);
+  }
+}
+
 // ── 게임 상태 저장소 ──
 const rooms = new Map();
+const playerSessions = new Map(); // playerId -> { roomCode, socketId }
+
+function generatePlayerId() {
+  return crypto.randomUUID();
+}
 
 function generateRoomCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
-  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  do {
+    code = '';
+    for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  } while (rooms.has(code));
   return code;
 }
 
 function generateBoard() {
-  // 1~25 숫자를 랜덤 배치한 5x5 빙고판
   const nums = [];
   for (let i = 1; i <= 25; i++) nums.push(i);
-  // Fisher-Yates shuffle
-  for (let i = nums.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [nums[i], nums[j]] = [nums[j], nums[i]];
-  }
+  shuffle(nums);
   const board = [];
   for (let r = 0; r < 5; r++) {
     board.push(nums.slice(r * 5, r * 5 + 5));
@@ -36,14 +73,10 @@ function generateBoard() {
 }
 
 function checkBingo(marked) {
-  // marked: 5x5 boolean 배열
   let lines = 0;
-
-  // 가로 5줄
   for (let r = 0; r < 5; r++) {
     if (marked[r].every(v => v)) lines++;
   }
-  // 세로 5줄
   for (let c = 0; c < 5; c++) {
     let col = true;
     for (let r = 0; r < 5; r++) {
@@ -51,7 +84,6 @@ function checkBingo(marked) {
     }
     if (col) lines++;
   }
-  // 대각선 2줄
   let d1 = true, d2 = true;
   for (let i = 0; i < 5; i++) {
     if (!marked[i][i]) d1 = false;
@@ -59,8 +91,84 @@ function checkBingo(marked) {
   }
   if (d1) lines++;
   if (d2) lines++;
-
   return lines;
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+
+function emitPlayerList(room) {
+  const players = [];
+  for (const [pid, p] of room.players) {
+    players.push({
+      name: p.name,
+      isHost: pid === room.host,
+      connected: p.connected,
+    });
+  }
+
+  const rankings = [...room.records.entries()]
+    .map(([name, r]) => ({ name, ...r }))
+    .sort((a, b) => b.wins - a.wins || a.losses - b.losses);
+
+  io.to(room.code).emit('player-list', {
+    players,
+    code: room.code,
+    winLines: room.winLines,
+    rankings,
+  });
+}
+
+function buildPlayerStates(room, forPlayerId) {
+  const states = [];
+  for (const [pid, player] of room.players) {
+    states.push({
+      name: player.name,
+      bingoLines: player.bingoLines,
+      isMe: pid === forPlayerId,
+      connected: player.connected,
+    });
+  }
+  return states;
+}
+
+function advanceTurn(room) {
+  const connectedPlayers = room.turnOrder.filter(pid => {
+    const p = room.players.get(pid);
+    return p && p.connected;
+  });
+  if (connectedPlayers.length === 0) return;
+
+  let attempts = 0;
+  do {
+    room.currentTurn = (room.currentTurn + 1) % room.turnOrder.length;
+    attempts++;
+  } while (
+    !room.players.get(room.turnOrder[room.currentTurn]).connected &&
+    attempts < room.turnOrder.length
+  );
+}
+
+// ── 서버 시작 시 전적 복원 ──
+const allStats = loadStats();
+for (const [code, data] of Object.entries(allStats)) {
+  rooms.set(code, {
+    code,
+    host: null,
+    players: new Map(),
+    calledNumbers: [],
+    remainingNumbers: [],
+    started: false,
+    currentTurn: 0,
+    turnOrder: [],
+    winner: null,
+    winLines: data.winLines || 3,
+    records: new Map(Object.entries(data.players || {})),
+  });
 }
 
 // ── Socket.IO 이벤트 ──
@@ -68,11 +176,13 @@ io.on('connection', (socket) => {
   console.log('연결:', socket.id);
 
   // 방 만들기
-  socket.on('create-room', (playerName) => {
+  socket.on('create-room', ({ playerName, playerId }) => {
+    if (!playerId) playerId = generatePlayerId();
+
     const code = generateRoomCode();
     const room = {
       code,
-      host: socket.id,
+      host: playerId,
       players: new Map(),
       calledNumbers: [],
       remainingNumbers: [],
@@ -80,100 +190,195 @@ io.on('connection', (socket) => {
       currentTurn: 0,
       turnOrder: [],
       winner: null,
+      winLines: 3,
+      records: new Map(),
     };
-    // 1~25 숫자 풀
+
     for (let i = 1; i <= 25; i++) room.remainingNumbers.push(i);
     shuffle(room.remainingNumbers);
 
-    room.players.set(socket.id, {
+    room.players.set(playerId, {
       name: playerName,
       board: null,
       marked: null,
       bingoLines: 0,
+      socketId: socket.id,
+      connected: true,
     });
 
     rooms.set(code, room);
     socket.join(code);
+    socket.playerId = playerId;
     socket.roomCode = code;
+    playerSessions.set(playerId, { roomCode: code, socketId: socket.id });
 
-    socket.emit('room-created', { code, playerName });
+    socket.emit('room-created', { code, playerName, playerId });
     emitPlayerList(room);
   });
 
-  // 방 참가
-  socket.on('join-room', ({ code, playerName }) => {
+  // 방 참가 (+ 재접속)
+  socket.on('join-room', ({ code, playerName, playerId }) => {
     const room = rooms.get(code);
     if (!room) {
       socket.emit('error-msg', '방을 찾을 수 없어요! 코드를 다시 확인해주세요.');
       return;
     }
+
+    // 재접속 확인
+    if (playerId && room.players.has(playerId)) {
+      const player = room.players.get(playerId);
+      player.socketId = socket.id;
+      player.connected = true;
+      socket.join(code);
+      socket.playerId = playerId;
+      socket.roomCode = code;
+      playerSessions.set(playerId, { roomCode: code, socketId: socket.id });
+
+      const isHost = room.host === playerId;
+
+      if (room.started && !room.winner) {
+        // 게임 진행 중 재접속
+        socket.emit('game-restored', {
+          board: player.board,
+          marked: player.marked,
+          bingoLines: player.bingoLines,
+          turnOrder: room.turnOrder.map(pid => room.players.get(pid).name),
+          myTurnIndex: room.turnOrder.indexOf(playerId),
+          currentTurn: room.currentTurn,
+          calledNumbers: room.calledNumbers,
+          playerStates: buildPlayerStates(room, playerId),
+          winLines: room.winLines,
+          winner: null,
+          isHost,
+        });
+      } else if (room.started && room.winner) {
+        // 게임 종료 상태 재접속
+        const winnerPlayer = room.players.get(room.winner);
+        socket.emit('game-restored', {
+          board: player.board,
+          marked: player.marked,
+          bingoLines: player.bingoLines,
+          turnOrder: room.turnOrder.map(pid => room.players.get(pid).name),
+          myTurnIndex: room.turnOrder.indexOf(playerId),
+          currentTurn: room.currentTurn,
+          calledNumbers: room.calledNumbers,
+          playerStates: buildPlayerStates(room, playerId),
+          winLines: room.winLines,
+          winner: winnerPlayer ? { name: winnerPlayer.name, lines: winnerPlayer.bingoLines } : null,
+          isHost,
+        });
+      } else {
+        // 대기실 재접속
+        socket.emit('room-joined', { code, playerName: player.name, playerId, isHost });
+        emitPlayerList(room);
+      }
+
+      io.to(code).emit('player-reconnected', { name: player.name });
+      emitPlayerList(room);
+      return;
+    }
+
+    // 새 플레이어 참가
     if (room.started) {
       socket.emit('error-msg', '이미 게임이 시작되었어요!');
       return;
     }
-    if (room.players.size >= 4) {
+
+    const connectedCount = [...room.players.values()].filter(p => p.connected).length;
+    if (connectedCount >= 4) {
       socket.emit('error-msg', '방이 가득 찼어요! (최대 4명)');
       return;
     }
 
-    room.players.set(socket.id, {
+    if (!playerId) playerId = generatePlayerId();
+
+    room.players.set(playerId, {
       name: playerName,
       board: null,
       marked: null,
       bingoLines: 0,
+      socketId: socket.id,
+      connected: true,
     });
 
-    socket.join(code);
-    socket.roomCode = code;
+    // 방장이 없으면(복원된 방) 첫 입장자가 방장
+    if (!room.host) {
+      room.host = playerId;
+    }
 
-    socket.emit('room-joined', { code, playerName });
+    socket.join(code);
+    socket.playerId = playerId;
+    socket.roomCode = code;
+    playerSessions.set(playerId, { roomCode: code, socketId: socket.id });
+
+    const isHost = room.host === playerId;
+    socket.emit('room-joined', { code, playerName, playerId, isHost });
     emitPlayerList(room);
+  });
+
+  // 승리 줄 수 설정 (방장만)
+  socket.on('set-win-lines', (lines) => {
+    const room = rooms.get(socket.roomCode);
+    if (!room || room.host !== socket.playerId) return;
+    if (![2, 3, 4, 5].includes(lines)) return;
+    room.winLines = lines;
+    io.to(room.code).emit('win-lines-updated', lines);
   });
 
   // 게임 시작 (방장만)
   socket.on('start-game', () => {
     const room = rooms.get(socket.roomCode);
-    if (!room || room.host !== socket.id) return;
-    if (room.players.size < 2) {
+    if (!room || room.host !== socket.playerId) return;
+
+    const connectedPlayers = [...room.players.entries()].filter(([, p]) => p.connected);
+    if (connectedPlayers.length < 2) {
       socket.emit('error-msg', '최소 2명이 필요해요!');
       return;
     }
 
     room.started = true;
-    room.turnOrder = [...room.players.keys()];
+    room.turnOrder = connectedPlayers.map(([pid]) => pid);
     shuffle(room.turnOrder);
     room.currentTurn = 0;
+    room.calledNumbers = [];
+    room.remainingNumbers = [];
+    for (let i = 1; i <= 25; i++) room.remainingNumbers.push(i);
+    shuffle(room.remainingNumbers);
+    room.winner = null;
 
-    // 각 플레이어에게 빙고판 배정
-    for (const [sid, player] of room.players) {
-      player.board = generateBoard();
-      player.marked = Array.from({ length: 5 }, () => Array(5).fill(false));
+    for (const [pid, player] of room.players) {
+      if (player.connected) {
+        player.board = generateBoard();
+        player.marked = Array.from({ length: 5 }, () => Array(5).fill(false));
+        player.bingoLines = 0;
+      }
     }
 
-    // 각 플레이어에게 게임 시작 알림 + 자기 보드 전송
-    for (const [sid, player] of room.players) {
-      const turnIndex = room.turnOrder.indexOf(sid);
-      io.to(sid).emit('game-started', {
+    for (const [pid, player] of room.players) {
+      if (!player.connected) continue;
+      const turnIndex = room.turnOrder.indexOf(pid);
+      io.to(player.socketId).emit('game-started', {
         board: player.board,
         turnOrder: room.turnOrder.map(id => room.players.get(id).name),
         myTurnIndex: turnIndex,
         currentTurn: room.currentTurn,
+        winLines: room.winLines,
+        isHost: pid === room.host,
       });
     }
   });
 
-  // 번호 부르기 (자기 턴에만)
+  // 번호 부르기
   socket.on('call-number', (number) => {
     const room = rooms.get(socket.roomCode);
     if (!room || !room.started || room.winner) return;
 
-    // 턴 확인
-    if (room.turnOrder[room.currentTurn] !== socket.id) {
+    const playerId = socket.playerId;
+    if (room.turnOrder[room.currentTurn] !== playerId) {
       socket.emit('error-msg', '아직 내 차례가 아니에요!');
       return;
     }
 
-    // 이미 불린 번호인지 확인
     if (room.calledNumbers.includes(number)) {
       socket.emit('error-msg', '이미 나온 번호예요!');
       return;
@@ -182,11 +387,12 @@ io.on('connection', (socket) => {
     room.calledNumbers.push(number);
     room.remainingNumbers = room.remainingNumbers.filter(n => n !== number);
 
-    const callerName = room.players.get(socket.id).name;
+    const callerName = room.players.get(playerId).name;
 
-    // 모든 플레이어의 보드에서 해당 번호 마킹
+    // 모든 플레이어 보드에서 마킹
     const playerStates = [];
-    for (const [sid, player] of room.players) {
+    for (const [pid, player] of room.players) {
+      if (!player.board) continue;
       for (let r = 0; r < 5; r++) {
         for (let c = 0; c < 5; c++) {
           if (player.board[r][c] === number) {
@@ -196,31 +402,51 @@ io.on('connection', (socket) => {
       }
       player.bingoLines = checkBingo(player.marked);
       playerStates.push({
-        id: sid,
+        id: pid,
         name: player.name,
         bingoLines: player.bingoLines,
-        marked: player.marked,
+        connected: player.connected,
       });
     }
 
-    // 빙고 달성 확인 (5줄 = 완전 빙고, 또는 설정에 따라)
-    // 여기서는 3줄 빙고로 승리 (7살 아이를 위해 빠른 게임)
-    const BINGO_WIN = 3;
+    // 빙고 달성 확인
     let winnerInfo = null;
-    for (const [sid, player] of room.players) {
-      if (player.bingoLines >= BINGO_WIN) {
-        room.winner = sid;
-        winnerInfo = { id: sid, name: player.name, lines: player.bingoLines };
+    for (const [pid, player] of room.players) {
+      if (player.bingoLines >= room.winLines) {
+        room.winner = pid;
+        winnerInfo = { id: pid, name: player.name, lines: player.bingoLines };
+
+        // 전적 업데이트
+        for (const [rpid, rplayer] of room.players) {
+          if (!rplayer.board) continue;
+          const name = rplayer.name;
+          if (!room.records.has(name)) {
+            room.records.set(name, { wins: 0, losses: 0, currentStreak: 0, maxStreak: 0 });
+          }
+          const rec = room.records.get(name);
+          if (rpid === pid) {
+            rec.wins++;
+            rec.currentStreak++;
+            rec.maxStreak = Math.max(rec.maxStreak, rec.currentStreak);
+          } else {
+            rec.losses++;
+            rec.currentStreak = 0;
+          }
+        }
+        saveStats();
         break;
       }
     }
 
     // 다음 턴
-    room.currentTurn = (room.currentTurn + 1) % room.turnOrder.length;
+    if (!winnerInfo) {
+      advanceTurn(room);
+    }
 
-    // 모든 플레이어에게 결과 전송
-    for (const [sid, player] of room.players) {
-      io.to(sid).emit('number-called', {
+    // 결과 전송
+    for (const [pid, player] of room.players) {
+      if (!player.connected) continue;
+      io.to(player.socketId).emit('number-called', {
         number,
         callerName,
         calledNumbers: room.calledNumbers,
@@ -230,17 +456,22 @@ io.on('connection', (socket) => {
         playerStates: playerStates.map(ps => ({
           name: ps.name,
           bingoLines: ps.bingoLines,
-          isMe: ps.id === sid,
+          isMe: ps.id === pid,
+          connected: ps.connected,
         })),
-        winner: winnerInfo,
+        winner: winnerInfo ? { name: winnerInfo.name, lines: winnerInfo.lines } : null,
+        rankings: winnerInfo ? [...room.records.entries()]
+          .map(([name, r]) => ({ name, ...r }))
+          .sort((a, b) => b.wins - a.wins || a.losses - b.losses) : null,
       });
     }
   });
 
-  // 새 게임 (같은 방에서)
+  // 새 게임 / 재시작 (방장만)
   socket.on('new-game', () => {
     const room = rooms.get(socket.roomCode);
-    if (!room || room.host !== socket.id) return;
+    if (!room) return;
+    if (room.host !== socket.playerId) return;
 
     room.calledNumbers = [];
     room.remainingNumbers = [];
@@ -249,8 +480,9 @@ io.on('connection', (socket) => {
     room.started = false;
     room.winner = null;
     room.currentTurn = 0;
+    room.turnOrder = [];
 
-    for (const [sid, player] of room.players) {
+    for (const [pid, player] of room.players) {
       player.board = null;
       player.marked = null;
       player.bingoLines = 0;
@@ -263,62 +495,42 @@ io.on('connection', (socket) => {
   // 연결 해제
   socket.on('disconnect', () => {
     console.log('연결 해제:', socket.id);
+    const playerId = socket.playerId;
     const code = socket.roomCode;
-    if (!code) return;
+    if (!code || !playerId) return;
     const room = rooms.get(code);
     if (!room) return;
 
-    const player = room.players.get(socket.id);
-    const playerName = player ? player.name : '알 수 없음';
-    room.players.delete(socket.id);
+    const player = room.players.get(playerId);
+    if (!player) return;
 
-    if (room.players.size === 0) {
-      rooms.delete(code);
-      return;
-    }
+    player.connected = false;
+    playerSessions.delete(playerId);
 
-    // 방장이 나가면 다음 사람이 방장
-    if (room.host === socket.id) {
-      room.host = room.players.keys().next().value;
-    }
-
-    // 턴 순서 업데이트
-    if (room.started) {
-      const idx = room.turnOrder.indexOf(socket.id);
-      if (idx !== -1) {
-        room.turnOrder.splice(idx, 1);
-        if (room.currentTurn >= room.turnOrder.length) {
-          room.currentTurn = 0;
+    // 게임 중 턴 넘기기
+    if (room.started && !room.winner) {
+      if (room.turnOrder[room.currentTurn] === playerId) {
+        advanceTurn(room);
+        // 턴 변경 알림
+        for (const [pid, p] of room.players) {
+          if (!p.connected) continue;
+          io.to(p.socketId).emit('turn-updated', {
+            currentTurn: room.currentTurn,
+          });
         }
       }
     }
 
-    io.to(code).emit('player-left', { name: playerName });
+    io.to(code).emit('player-disconnected', { name: player.name });
     emitPlayerList(room);
   });
 });
-
-function emitPlayerList(room) {
-  const players = [];
-  for (const [sid, p] of room.players) {
-    players.push({ name: p.name, isHost: sid === room.host });
-  }
-  io.to(room.code).emit('player-list', { players, code: room.code });
-}
-
-function shuffle(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-}
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🎱 빙고 게임 서버 시작!`);
   console.log(`   http://localhost:${PORT}`);
   console.log(`\n같은 Wi-Fi에 있는 기기에서 접속하려면:`);
-  // 로컬 IP 출력
   const os = require('os');
   const nets = os.networkInterfaces();
   for (const name of Object.keys(nets)) {
