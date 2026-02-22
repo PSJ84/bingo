@@ -424,10 +424,10 @@
         stages: {
           1: { completed: 0, stars: 0, unlocked: true },
           2: { completed: 0, stars: 0, unlocked: true },
-          3: { completed: 0, stars: 0, unlocked: false },
-          4: { completed: 0, stars: 0, unlocked: false },
-          5: { completed: 0, stars: 0, unlocked: false },
-          6: { completed: 0, stars: 0, unlocked: false },
+          3: { completed: 0, stars: 0, unlocked: true },
+          4: { completed: 0, stars: 0, unlocked: true },
+          5: { completed: 0, stars: 0, unlocked: true },
+          6: { completed: 0, stars: 0, unlocked: true },
         }
       };
     }
@@ -437,11 +437,8 @@
     }
 
     function checkUnlocks() {
-      for (let i = 2; i <= 6; i++) {
-        const prev = progress.stages[i - 1];
-        if (prev && prev.completed >= UNLOCK_THRESHOLD) {
-          progress.stages[i].unlocked = true;
-        }
+      for (let i = 1; i <= 6; i++) {
+        progress.stages[i].unlocked = true;
       }
       saveProgress();
     }

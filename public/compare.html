@@ -251,9 +251,9 @@
     function playWrongSound(){const ctx=getAudioCtx(),t=ctx.currentTime;const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='square';o.frequency.setValueAtTime(200,t);g.gain.setValueAtTime(0.12,t);g.gain.exponentialRampToValueAtTime(0.01,t+0.25);o.start(t);o.stop(t+0.25);}
     function playClearSound(){const ctx=getAudioCtx(),t=ctx.currentTime;[[523,659,784],[587,740,880],[523,659,784,1047]].forEach((chord,ci)=>{chord.forEach(f=>{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='sine';o.frequency.setValueAtTime(f,t+ci*0.3);g.gain.setValueAtTime(0.12,t+ci*0.3);g.gain.exponentialRampToValueAtTime(0.01,t+ci*0.3+0.5);o.start(t+ci*0.3);o.stop(t+ci*0.3+0.5);});});}
 
-    function loadProgress(){try{const d=JSON.parse(localStorage.getItem('compare-progress'));if(d&&d.stages)return d;}catch(e){}return{stages:{1:{completed:0,stars:0,unlocked:true},2:{completed:0,stars:0,unlocked:true},3:{completed:0,stars:0,unlocked:false},4:{completed:0,stars:0,unlocked:false}}};}
+    function loadProgress(){try{const d=JSON.parse(localStorage.getItem('compare-progress'));if(d&&d.stages)return d;}catch(e){}return{stages:{1:{completed:0,stars:0,unlocked:true},2:{completed:0,stars:0,unlocked:true},3:{completed:0,stars:0,unlocked:true},4:{completed:0,stars:0,unlocked:true}}};}
     function saveProgress(){localStorage.setItem('compare-progress',JSON.stringify(progress));}
-    function checkUnlocks(){for(let i=2;i<=4;i++){if(progress.stages[i-1].completed>=UNLOCK_THRESHOLD)progress.stages[i].unlocked=true;}saveProgress();}
+    function checkUnlocks(){for(let i=1;i<=4;i++){progress.stages[i].unlocked=true;}saveProgress();}
 
     function renderStageSelect(){
       checkUnlocks();

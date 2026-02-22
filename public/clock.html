@@ -267,10 +267,10 @@
     // ── 진행도 ──
     function loadProgress() {
       try { const d = JSON.parse(localStorage.getItem('clock-progress')); if (d && d.stages) return d; } catch(e) {}
-      return { stages: { 1:{completed:0,stars:0,unlocked:true}, 2:{completed:0,stars:0,unlocked:false}, 3:{completed:0,stars:0,unlocked:false}, 4:{completed:0,stars:0,unlocked:false} } };
+      return { stages: { 1:{completed:0,stars:0,unlocked:true}, 2:{completed:0,stars:0,unlocked:true}, 3:{completed:0,stars:0,unlocked:true}, 4:{completed:0,stars:0,unlocked:true} } };
     }
     function saveProgress() { localStorage.setItem('clock-progress', JSON.stringify(progress)); }
-    function checkUnlocks() { for (let i=2;i<=4;i++) { if (progress.stages[i-1].completed >= UNLOCK_THRESHOLD) progress.stages[i].unlocked = true; } saveProgress(); }
+    function checkUnlocks() { for (let i=1;i<=4;i++) { progress.stages[i].unlocked = true; } saveProgress(); }
 
     // ── 시계 렌더링 ──
     function initClock() {
