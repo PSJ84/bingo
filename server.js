@@ -195,6 +195,49 @@ function buildPlayerStates(room, forPlayerId) {
   return states;
 }
 
+// ── 방 목록 브로드캐스트 ──
+function getBingoRoomList() {
+  const list = [];
+  for (const [code, room] of rooms) {
+    if (room.started) continue;
+    const connectedCount = [...room.players.values()].filter(p => p.connected).length;
+    if (connectedCount === 0) continue;
+    const hostPlayer = room.players.get(room.host);
+    list.push({
+      code,
+      hostName: hostPlayer ? hostPlayer.name : '???',
+      playerCount: connectedCount,
+      maxPlayers: 4,
+    });
+  }
+  return list;
+}
+
+function getQuizRoomList() {
+  const list = [];
+  for (const [code, room] of quizRooms) {
+    if (room.status !== 'waiting') continue;
+    const connectedCount = [...room.players.values()].filter(p => p.connected).length;
+    if (connectedCount === 0) continue;
+    const hostPlayer = room.players.get(room.host);
+    list.push({
+      code,
+      hostName: hostPlayer ? hostPlayer.name : '???',
+      playerCount: connectedCount,
+      maxPlayers: 4,
+    });
+  }
+  return list;
+}
+
+function broadcastBingoRoomList() {
+  io.emit('bingo:room-list', getBingoRoomList());
+}
+
+function broadcastQuizRoomList() {
+  io.emit('quiz:room-list', getQuizRoomList());
+}
+
 function advanceTurn(room) {
   const connectedPlayers = room.turnOrder.filter(pid => {
     const p = room.players.get(pid);
@@ -234,6 +277,10 @@ for (const [code, data] of Object.entries(allStats)) {
 // ── Socket.IO 이벤트 ──
 io.on('connection', (socket) => {
   console.log('연결:', socket.id);
+
+  // 연결 시 현재 방 목록 전송
+  socket.emit('bingo:room-list', getBingoRoomList());
+  socket.emit('quiz:room-list', getQuizRoomList());
 
   // 방 만들기
   socket.on('create-room', ({ playerName, playerId }) => {
@@ -275,6 +322,7 @@ io.on('connection', (socket) => {
 
     socket.emit('room-created', { code, playerName, playerId });
     emitPlayerList(room);
+    broadcastBingoRoomList();
   });
 
   // 방 참가 (+ 재접속)
@@ -377,6 +425,7 @@ io.on('connection', (socket) => {
     const isHost = room.host === playerId;
     socket.emit('room-joined', { code, playerName, playerId, isHost });
     emitPlayerList(room);
+    broadcastBingoRoomList();
   });
 
   // 승리 줄 수 설정 (방장만)
@@ -409,6 +458,7 @@ io.on('connection', (socket) => {
     }
 
     room.started = true;
+    broadcastBingoRoomList();
     room.turnOrder = connectedPlayers.map(([pid]) => pid);
     shuffle(room.turnOrder);
     room.currentTurn = 0;
@@ -563,6 +613,7 @@ io.on('connection', (socket) => {
 
     io.to(room.code).emit('game-reset');
     emitPlayerList(room);
+    broadcastBingoRoomList();
   });
 
   // 연결 해제
@@ -596,6 +647,7 @@ io.on('connection', (socket) => {
 
     io.to(code).emit('player-disconnected', { name: player.name });
     emitPlayerList(room);
+    broadcastBingoRoomList();
   });
 
   // ════════════════════════════════════════
@@ -634,6 +686,7 @@ io.on('connection', (socket) => {
 
     socket.emit('quiz:room-created', { code, playerName, playerId });
     emitQuizPlayerList(room);
+    broadcastQuizRoomList();
   });
 
   socket.on('quiz:join-room', ({ code, playerName, playerId, emoji }) => {
@@ -716,6 +769,7 @@ io.on('connection', (socket) => {
     const isHost = room.host === playerId;
     socket.emit('quiz:room-joined', { code, playerName, playerId, isHost });
     emitQuizPlayerList(room);
+    broadcastQuizRoomList();
   });
 
   socket.on('quiz:set-difficulty', (difficulty) => {
@@ -745,6 +799,7 @@ io.on('connection', (socket) => {
 
     // 카운트다운 시작
     room.status = 'countdown';
+    broadcastQuizRoomList();
     for (const [, p] of room.players) p.score = 0;
     io.to('quiz:' + room.code).emit('quiz:countdown', 3);
 
@@ -878,6 +933,7 @@ io.on('connection', (socket) => {
 
     io.to('quiz:' + room.code).emit('quiz:game-reset');
     emitQuizPlayerList(room);
+    broadcastQuizRoomList();
   });
 
   // 퀴즈 disconnect 처리
@@ -893,6 +949,7 @@ io.on('connection', (socket) => {
     player.connected = false;
     io.to('quiz:' + quizCode).emit('quiz:player-disconnected', { name: player.name });
     emitQuizPlayerList(room);
+    broadcastQuizRoomList();
   });
 });
 

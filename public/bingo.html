@@ -76,6 +76,26 @@
     input[type="text"]:focus { border-color: var(--accent); }
     input[type="text"]::placeholder { color: #666; }
 
+    .name-btn {
+      padding: 12px 24px; border: 3px solid #333; border-radius: 12px;
+      background: var(--card); color: var(--text); font-size: 1.1rem; font-weight: 700;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .name-btn.active { border-color: var(--accent); background: rgba(233,69,96,0.15); color: var(--accent); transform: scale(1.08); }
+
+    .room-card {
+      display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+      background: var(--card); border-radius: 14px; cursor: pointer;
+      border: 2px solid #333; transition: all 0.15s;
+    }
+    .room-card:hover { border-color: var(--accent); transform: scale(1.02); }
+    .room-card:active { transform: scale(0.97); }
+    .room-card .rc-icon { font-size: 1.5rem; }
+    .room-card .rc-info { flex: 1; }
+    .room-card .rc-host { font-weight: 700; font-size: 1rem; }
+    .room-card .rc-count { font-size: 0.8rem; color: #888; }
+    .room-card .rc-arrow { color: #555; font-size: 1.2rem; }
+
     /* ── 대기실 ── */
     .room-code {
       font-size: 2.5rem;
@@ -408,20 +428,24 @@
     <h1><span class="emoji">🎱</span> 가족 빙고</h1>
     <p class="sub-text">5x5 숫자 빙고 | 함께 즐기는 가족 게임!</p>
 
-    <input type="text" id="input-name" placeholder="이름을 입력하세요" maxlength="8">
+    <p style="color:#aaa; font-size:0.9rem; margin-top:8px;">이름 선택</p>
+    <div class="name-selector" style="display:flex; gap:8px; justify-content:center; margin:8px 0;">
+      <button class="name-btn" onclick="selectName(this)" data-name="아빠">아빠</button>
+      <button class="name-btn" onclick="selectName(this)" data-name="엄마">엄마</button>
+      <button class="name-btn" onclick="selectName(this)" data-name="시윤">시윤</button>
+    </div>
 
     <button class="lobby-btn btn-create" onclick="createRoom()">
       🏠 방 만들기
     </button>
 
-    <div style="display:flex; gap:8px; width:100%; max-width:320px; align-items:center; margin:4px 0;">
-      <input type="text" id="input-code" placeholder="방 코드" maxlength="4"
-             style="flex:1; text-transform:uppercase; letter-spacing:4px; font-weight:700;">
-      <button class="lobby-btn btn-join" onclick="joinRoom()"
-              style="width:auto; flex:0 0 auto; padding:14px 24px;">
-        참가
-      </button>
+    <div style="width:100%; max-width:320px; margin-top:12px;">
+      <p style="color:#aaa; font-size:0.9rem; text-align:center; margin-bottom:8px;">현재 열린 방</p>
+      <div id="room-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+      <p id="no-rooms" style="color:#555; font-size:0.85rem; text-align:center; margin-top:8px;">열린 방이 없습니다. 새로 만들어보세요!</p>
     </div>
+
+    <a href="/" style="color:#666; font-size:0.85rem; margin-top:16px; text-decoration:none;">🏠 홈으로</a>
   </div>
 
   <!-- 대기실 -->
@@ -623,22 +647,32 @@
       setTimeout(() => t.remove(), 2500);
     }
 
-    // ── 로비 ──
-    function createRoom() {
-      const name = document.getElementById('input-name').value.trim();
-      if (!name) { showToast('이름을 입력해주세요!'); return; }
-      getAudioCtx();
-      isHost = true;
-      socket.emit('create-room', { playerName: name, playerId });
+    // ── 이름 선택 ──
+    let selectedName = localStorage.getItem('bingo-player-name') || null;
+
+    function selectName(btn) {
+      selectedName = btn.dataset.name;
+      localStorage.setItem('bingo-player-name', selectedName);
+      document.querySelectorAll('.name-btn').forEach(b => b.classList.toggle('active', b.dataset.name === selectedName));
     }
 
-    function joinRoom() {
-      const name = document.getElementById('input-name').value.trim();
-      const code = document.getElementById('input-code').value.trim().toUpperCase();
-      if (!name) { showToast('이름을 입력해주세요!'); return; }
-      if (!code || code.length < 4) { showToast('방 코드를 입력해주세요!'); return; }
+    // 저장된 이름 복원
+    if (selectedName) {
+      document.querySelectorAll('.name-btn').forEach(b => b.classList.toggle('active', b.dataset.name === selectedName));
+    }
+
+    // ── 로비 ──
+    function createRoom() {
+      if (!selectedName) { showToast('이름을 선택해주세요!'); return; }
       getAudioCtx();
-      socket.emit('join-room', { code, playerName: name, playerId });
+      isHost = true;
+      socket.emit('create-room', { playerName: selectedName, playerId });
+    }
+
+    function joinRoomByCode(code) {
+      if (!selectedName) { showToast('이름을 선택해주세요!'); return; }
+      getAudioCtx();
+      socket.emit('join-room', { code, playerName: selectedName, playerId });
     }
 
     function leaveRoom() {
@@ -874,6 +908,27 @@
       showToast(msg);
     });
 
+    // ── 실시간 방 목록 ──
+    socket.on('bingo:room-list', (list) => {
+      const container = document.getElementById('room-list');
+      const noRooms = document.getElementById('no-rooms');
+      container.innerHTML = '';
+      if (list.length === 0) {
+        noRooms.style.display = 'block';
+        return;
+      }
+      noRooms.style.display = 'none';
+      list.forEach(r => {
+        const card = document.createElement('div');
+        card.className = 'room-card';
+        card.innerHTML = `<span class="rc-icon">🎱</span>
+          <div class="rc-info"><div class="rc-host">${escHtml(r.hostName)}의 방</div><div class="rc-count">${r.playerCount}/${r.maxPlayers}명</div></div>
+          <span class="rc-arrow">→</span>`;
+        card.onclick = () => joinRoomByCode(r.code);
+        container.appendChild(card);
+      });
+    });
+
     // ── 페이지 로드 시 자동 재접속 ──
     window.addEventListener('load', () => {
       if (playerId && savedRoomCode && savedPlayerName) {
@@ -1083,13 +1138,7 @@
       return d.innerHTML;
     }
 
-    // 엔터키로 참가
-    document.getElementById('input-code').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') joinRoom();
-    });
-    document.getElementById('input-name').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') document.getElementById('input-code').focus();
-    });
+    // (방 코드 입력 제거됨 - 실시간 방 목록 사용)
   </script>
 </body>
 </html>

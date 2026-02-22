@@ -57,6 +57,26 @@
     .btn-join { background: var(--accent2); color: #fff; }
 
     .sub-text { color: #888; font-size: 0.85rem; margin: 4px 0; }
+
+    .name-btn {
+      padding: 12px 24px; border: 3px solid #333; border-radius: 12px;
+      background: var(--card); color: var(--text); font-size: 1.1rem; font-weight: 700;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .name-btn.active { border-color: var(--purple); background: rgba(108,92,231,0.15); color: var(--purple); transform: scale(1.08); }
+
+    .room-card {
+      display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+      background: var(--card); border-radius: 14px; cursor: pointer;
+      border: 2px solid #333; transition: all 0.15s;
+    }
+    .room-card:hover { border-color: var(--purple); transform: scale(1.02); }
+    .room-card:active { transform: scale(0.97); }
+    .room-card .rc-icon { font-size: 1.5rem; }
+    .room-card .rc-info { flex: 1; }
+    .room-card .rc-host { font-weight: 700; font-size: 1rem; }
+    .room-card .rc-count { font-size: 0.8rem; color: #888; }
+    .room-card .rc-arrow { color: #555; font-size: 1.2rem; }
     .info-text { color: #888; font-size: 0.95rem; margin: 8px 0; text-align: center; }
 
     .back-btn {
@@ -208,20 +228,25 @@
     <h1>🧮 수학 퀴즈 대결</h1>
     <p class="sub-text">가족과 함께 덧셈 뺄셈 속도 대결!</p>
 
-    <input type="text" id="input-name" placeholder="이름을 입력하세요" maxlength="8">
+    <p style="color:#aaa; font-size:0.9rem; margin-top:8px;">이름 선택</p>
+    <div class="name-selector" style="display:flex; gap:8px; justify-content:center; margin:8px 0;">
+      <button class="name-btn" onclick="selectName(this)" data-name="아빠">아빠</button>
+      <button class="name-btn" onclick="selectName(this)" data-name="엄마">엄마</button>
+      <button class="name-btn" onclick="selectName(this)" data-name="시윤">시윤</button>
+    </div>
 
     <p style="color:#aaa; font-size:0.9rem; margin-top:8px;">캐릭터 선택</p>
     <div class="emoji-grid" id="emoji-grid"></div>
 
     <button class="lobby-btn btn-create" onclick="createRoom()">🎮 방 만들기</button>
 
-    <div style="display:flex; gap:8px; width:100%; max-width:320px; align-items:center; margin:4px 0;">
-      <input type="text" id="input-code" placeholder="방 코드" maxlength="4"
-             style="flex:1; text-transform:uppercase; letter-spacing:4px; font-weight:700;">
-      <button class="lobby-btn btn-join" onclick="joinRoom()"
-              style="width:auto; flex:0 0 auto; padding:14px 24px;">참가</button>
+    <div style="width:100%; max-width:320px; margin-top:12px;">
+      <p style="color:#aaa; font-size:0.9rem; text-align:center; margin-bottom:8px;">현재 열린 방</p>
+      <div id="room-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+      <p id="no-rooms" style="color:#555; font-size:0.85rem; text-align:center; margin-top:8px;">열린 방이 없습니다. 새로 만들어보세요!</p>
     </div>
-    <a href="/" class="back-btn">🏠 홈으로</a>
+
+    <a href="/" class="back-btn" style="margin-top:12px;">🏠 홈으로</a>
   </div>
 
   <!-- 대기실 -->
@@ -386,21 +411,30 @@
 
     function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
-    // 로비 함수
-    function createRoom() {
-      const name = document.getElementById('input-name').value.trim();
-      if (!name) { showToast('이름을 입력해주세요!'); return; }
-      getAudioCtx(); isHost = true;
-      socket.emit('quiz:create-room', { playerName: name, playerId, emoji: selectedEmoji });
+    // ── 이름 선택 ──
+    let selectedName = localStorage.getItem('quiz-player-name') || null;
+
+    function selectName(btn) {
+      selectedName = btn.dataset.name;
+      localStorage.setItem('quiz-player-name', selectedName);
+      document.querySelectorAll('.name-btn').forEach(b => b.classList.toggle('active', b.dataset.name === selectedName));
     }
 
-    function joinRoom() {
-      const name = document.getElementById('input-name').value.trim();
-      const code = document.getElementById('input-code').value.trim().toUpperCase();
-      if (!name) { showToast('이름을 입력해주세요!'); return; }
-      if (!code || code.length < 4) { showToast('방 코드를 입력해주세요!'); return; }
+    if (selectedName) {
+      document.querySelectorAll('.name-btn').forEach(b => b.classList.toggle('active', b.dataset.name === selectedName));
+    }
+
+    // 로비 함수
+    function createRoom() {
+      if (!selectedName) { showToast('이름을 선택해주세요!'); return; }
+      getAudioCtx(); isHost = true;
+      socket.emit('quiz:create-room', { playerName: selectedName, playerId, emoji: selectedEmoji });
+    }
+
+    function joinRoomByCode(code) {
+      if (!selectedName) { showToast('이름을 선택해주세요!'); return; }
       getAudioCtx();
-      socket.emit('quiz:join-room', { code, playerName: name, playerId, emoji: selectedEmoji });
+      socket.emit('quiz:join-room', { code, playerName: selectedName, playerId, emoji: selectedEmoji });
     }
 
     function leaveRoom() { localStorage.removeItem('quiz-room-code'); location.reload(); }
@@ -616,6 +650,27 @@
     socket.on('quiz:player-disconnected', ({ name }) => { showToast(`${name} 님의 연결이 끊겼어요`); });
     socket.on('quiz:error-msg', (msg) => { showToast(msg); });
 
+    // ── 실시간 방 목록 ──
+    socket.on('quiz:room-list', (list) => {
+      const container = document.getElementById('room-list');
+      const noRooms = document.getElementById('no-rooms');
+      container.innerHTML = '';
+      if (list.length === 0) {
+        noRooms.style.display = 'block';
+        return;
+      }
+      noRooms.style.display = 'none';
+      list.forEach(r => {
+        const card = document.createElement('div');
+        card.className = 'room-card';
+        card.innerHTML = `<span class="rc-icon">🧮</span>
+          <div class="rc-info"><div class="rc-host">${escHtml(r.hostName)}의 방</div><div class="rc-count">${r.playerCount}/${r.maxPlayers}명</div></div>
+          <span class="rc-arrow">→</span>`;
+        card.onclick = () => joinRoomByCode(r.code);
+        container.appendChild(card);
+      });
+    });
+
     // 렌더링
     function renderScoreboard(players) {
       const el = document.getElementById('scoreboard');
@@ -677,9 +732,7 @@
     });
     window.addEventListener('beforeunload', (e) => { if (gameActive) { e.preventDefault(); e.returnValue = ''; } });
 
-    // 엔터키
-    document.getElementById('input-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') joinRoom(); });
-    document.getElementById('input-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('input-code').focus(); });
+    // (방 코드 입력 제거됨 - 실시간 방 목록 사용)
   </script>
 </body>
 </html>
