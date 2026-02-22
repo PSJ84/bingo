@@ -32,6 +32,7 @@ function saveStats() {
       if (room.records.size > 0) {
         data[code] = {
           winLines: room.winLines,
+          numberRange: room.numberRange,
           players: Object.fromEntries(room.records),
           lastActivity: new Date().toISOString(),
         };
@@ -61,13 +62,14 @@ function generateRoomCode() {
   return code;
 }
 
-function generateBoard() {
-  const nums = [];
-  for (let i = 1; i <= 25; i++) nums.push(i);
-  shuffle(nums);
+function generateBoard(numberRange) {
+  const pool = [];
+  for (let i = 1; i <= numberRange; i++) pool.push(i);
+  shuffle(pool);
+  const picked = pool.slice(0, 25);
   const board = [];
   for (let r = 0; r < 5; r++) {
-    board.push(nums.slice(r * 5, r * 5 + 5));
+    board.push(picked.slice(r * 5, r * 5 + 5));
   }
   return board;
 }
@@ -119,6 +121,7 @@ function emitPlayerList(room) {
     players,
     code: room.code,
     winLines: room.winLines,
+    numberRange: room.numberRange,
     rankings,
   });
 }
@@ -167,6 +170,7 @@ for (const [code, data] of Object.entries(allStats)) {
     turnOrder: [],
     winner: null,
     winLines: data.winLines || 3,
+    numberRange: data.numberRange || 25,
     records: new Map(Object.entries(data.players || {})),
   });
 }
@@ -191,6 +195,7 @@ io.on('connection', (socket) => {
       turnOrder: [],
       winner: null,
       winLines: 3,
+      numberRange: 25,
       records: new Map(),
     };
 
@@ -248,6 +253,7 @@ io.on('connection', (socket) => {
           calledNumbers: room.calledNumbers,
           playerStates: buildPlayerStates(room, playerId),
           winLines: room.winLines,
+          numberRange: room.numberRange,
           winner: null,
           isHost,
         });
@@ -264,6 +270,7 @@ io.on('connection', (socket) => {
           calledNumbers: room.calledNumbers,
           playerStates: buildPlayerStates(room, playerId),
           winLines: room.winLines,
+          numberRange: room.numberRange,
           winner: winnerPlayer ? { name: winnerPlayer.name, lines: winnerPlayer.bingoLines } : null,
           isHost,
         });
@@ -325,6 +332,15 @@ io.on('connection', (socket) => {
     io.to(room.code).emit('win-lines-updated', lines);
   });
 
+  // 숫자 범위 설정 (방장만)
+  socket.on('set-number-range', (range) => {
+    const room = rooms.get(socket.roomCode);
+    if (!room || room.host !== socket.playerId) return;
+    if (![25, 50, 75].includes(range)) return;
+    room.numberRange = range;
+    io.to(room.code).emit('number-range-updated', range);
+  });
+
   // 게임 시작 (방장만)
   socket.on('start-game', () => {
     const room = rooms.get(socket.roomCode);
@@ -342,13 +358,13 @@ io.on('connection', (socket) => {
     room.currentTurn = 0;
     room.calledNumbers = [];
     room.remainingNumbers = [];
-    for (let i = 1; i <= 25; i++) room.remainingNumbers.push(i);
+    for (let i = 1; i <= room.numberRange; i++) room.remainingNumbers.push(i);
     shuffle(room.remainingNumbers);
     room.winner = null;
 
     for (const [pid, player] of room.players) {
       if (player.connected) {
-        player.board = generateBoard();
+        player.board = generateBoard(room.numberRange);
         player.marked = Array.from({ length: 5 }, () => Array(5).fill(false));
         player.bingoLines = 0;
       }
@@ -363,6 +379,7 @@ io.on('connection', (socket) => {
         myTurnIndex: turnIndex,
         currentTurn: room.currentTurn,
         winLines: room.winLines,
+        numberRange: room.numberRange,
         isHost: pid === room.host,
       });
     }
@@ -475,7 +492,7 @@ io.on('connection', (socket) => {
 
     room.calledNumbers = [];
     room.remainingNumbers = [];
-    for (let i = 1; i <= 25; i++) room.remainingNumbers.push(i);
+    for (let i = 1; i <= room.numberRange; i++) room.remainingNumbers.push(i);
     shuffle(room.remainingNumbers);
     room.started = false;
     room.winner = null;
