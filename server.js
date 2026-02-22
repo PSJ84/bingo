@@ -9,7 +9,39 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ── Google Cloud TTS 프록시 ──
+const GOOGLE_TTS_KEY = process.env.GOOGLE_TTS_KEY || 'AIzaSyAeU4yHYqYDoNvWGA-axG2XcV77t7F1qcM';
+
+app.post('/api/tts', async (req, res) => {
+  const { text } = req.body;
+  if (!text || text.length > 200) {
+    return res.status(400).json({ error: 'Invalid text' });
+  }
+  try {
+    const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_TTS_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: { text },
+        voice: { languageCode: 'ko-KR', name: 'ko-KR-Neural2-A' },
+        audioConfig: { audioEncoding: 'MP3', speakingRate: 0.85 },
+      }),
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      console.error('TTS API error:', err);
+      return res.status(500).json({ error: 'TTS failed' });
+    }
+    const data = await response.json();
+    res.json({ audioContent: data.audioContent });
+  } catch (e) {
+    console.error('TTS fetch error:', e);
+    res.status(500).json({ error: 'TTS failed' });
+  }
+});
 
 // ── 전적 파일 저장/로드 ──
 const STATS_FILE = path.join(__dirname, 'stats.json');

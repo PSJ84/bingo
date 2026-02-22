@@ -280,18 +280,47 @@
     function playWrongSound() { const ctx=getAudioCtx(),t=ctx.currentTime; const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='square';o.frequency.setValueAtTime(200,t);g.gain.setValueAtTime(0.12,t);g.gain.exponentialRampToValueAtTime(0.01,t+0.25);o.start(t);o.stop(t+0.25); }
     function playClearSound() { const ctx=getAudioCtx(),t=ctx.currentTime; [[523,659,784],[587,740,880],[523,659,784,1047]].forEach((chord,ci)=>{chord.forEach(f=>{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='sine';o.frequency.setValueAtTime(f,t+ci*0.3);g.gain.setValueAtTime(0.12,t+ci*0.3);g.gain.exponentialRampToValueAtTime(0.01,t+ci*0.3+0.5);o.start(t+ci*0.3);o.stop(t+ci*0.3+0.5);});}); }
 
-    // ── TTS ──
-    function speakWord(text) {
-      if (!('speechSynthesis' in window)) return;
-      speechSynthesis.cancel();
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = 'ko-KR';
-      utter.rate = 0.8;
+    // ── TTS (Google Cloud Neural2) ──
+    let ttsAudio = null;
+    const ttsCache = {};
+
+    async function speakWord(text) {
       const btn = document.getElementById('btn-listen');
       btn.classList.add('playing');
-      utter.onend = () => btn.classList.remove('playing');
-      utter.onerror = () => btn.classList.remove('playing');
-      speechSynthesis.speak(utter);
+
+      try {
+        // 캐시 확인
+        let audioSrc = ttsCache[text];
+        if (!audioSrc) {
+          const res = await fetch('/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text }),
+          });
+          if (!res.ok) throw new Error('TTS failed');
+          const data = await res.json();
+          audioSrc = 'data:audio/mp3;base64,' + data.audioContent;
+          ttsCache[text] = audioSrc;
+        }
+
+        // 이전 재생 중지
+        if (ttsAudio) { ttsAudio.pause(); ttsAudio = null; }
+
+        ttsAudio = new Audio(audioSrc);
+        ttsAudio.onended = () => btn.classList.remove('playing');
+        ttsAudio.onerror = () => btn.classList.remove('playing');
+        await ttsAudio.play();
+      } catch (e) {
+        console.error('TTS error:', e);
+        btn.classList.remove('playing');
+        // 폴백: 브라우저 내장 TTS
+        if ('speechSynthesis' in window) {
+          const utter = new SpeechSynthesisUtterance(text);
+          utter.lang = 'ko-KR'; utter.rate = 0.8;
+          utter.onend = () => btn.classList.remove('playing');
+          speechSynthesis.speak(utter);
+        }
+      }
     }
 
     function playWord() {
