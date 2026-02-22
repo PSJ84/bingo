@@ -284,6 +284,7 @@
     <button class="btn-start" id="btn-start" style="display:none" onclick="startGame()">게임 시작! 🚀</button>
     <p class="info-text" id="waiting-msg">방장이 게임을 시작할 때까지 기다려주세요...</p>
     <button class="back-btn" onclick="leaveRoom()">나가기</button>
+    <button class="back-btn" id="btn-close-room" style="display:none; color:var(--accent); border-color:var(--accent);" onclick="closeRoom()">방 닫기</button>
     <a href="/" class="back-btn" style="margin-top:4px;">🏠 홈으로</a>
   </div>
 
@@ -438,6 +439,12 @@
     }
 
     function leaveRoom() { localStorage.removeItem('quiz-room-code'); location.reload(); }
+    function closeRoom() {
+      if (!isHost) return;
+      if (confirm('정말 방을 닫으시겠어요? 모든 플레이어가 나가게 됩니다.')) {
+        socket.emit('quiz:close-room');
+      }
+    }
     function startGame() { socket.emit('quiz:start-game'); }
     function setDifficulty(d) { socket.emit('quiz:set-difficulty', d); }
     function setRounds(r) { socket.emit('quiz:set-rounds', r); }
@@ -511,6 +518,9 @@
       if (isHost && connectedCount >= 2) { btnStart.style.display = 'block'; waitMsg.style.display = 'none'; }
       else if (isHost) { btnStart.style.display = 'none'; waitMsg.textContent = '다른 플레이어를 기다리는 중...'; waitMsg.style.display = 'block'; }
       else { btnStart.style.display = 'none'; waitMsg.textContent = '방장이 게임을 시작할 때까지 기다려주세요...'; waitMsg.style.display = 'block'; }
+
+      // 방 닫기 버튼 (방장만)
+      document.getElementById('btn-close-room').style.display = isHost ? 'inline-block' : 'none';
     });
 
     socket.on('quiz:difficulty-updated', (d) => {
@@ -649,6 +659,12 @@
 
     socket.on('quiz:player-disconnected', ({ name }) => { showToast(`${name} 님의 연결이 끊겼어요`); });
     socket.on('quiz:error-msg', (msg) => { showToast(msg); });
+
+    socket.on('quiz:room-closed', () => {
+      localStorage.removeItem('quiz-room-code');
+      showToast('방장이 방을 닫았어요!');
+      setTimeout(() => location.reload(), 1000);
+    });
 
     // ── 실시간 방 목록 ──
     socket.on('quiz:room-list', (list) => {

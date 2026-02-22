@@ -616,6 +616,27 @@ io.on('connection', (socket) => {
     broadcastBingoRoomList();
   });
 
+  // 방 닫기 (방장만)
+  socket.on('close-room', () => {
+    const room = rooms.get(socket.roomCode);
+    if (!room || room.host !== socket.playerId) return;
+
+    const code = room.code;
+
+    // 모든 플레이어에게 알림
+    io.to(code).emit('room-closed');
+
+    // playerSessions 정리
+    for (const [pid] of room.players) {
+      playerSessions.delete(pid);
+    }
+
+    // 방 삭제
+    rooms.delete(code);
+    saveStats();
+    broadcastBingoRoomList();
+  });
+
   // 연결 해제
   socket.on('disconnect', () => {
     console.log('연결 해제:', socket.id);
@@ -933,6 +954,26 @@ io.on('connection', (socket) => {
 
     io.to('quiz:' + room.code).emit('quiz:game-reset');
     emitQuizPlayerList(room);
+    broadcastQuizRoomList();
+  });
+
+  // 퀴즈 방 닫기 (방장만)
+  socket.on('quiz:close-room', () => {
+    const room = quizRooms.get(socket.quizRoomCode);
+    if (!room || room.host !== socket.playerId) return;
+
+    const code = room.code;
+
+    // 모든 플레이어에게 알림
+    io.to('quiz:' + code).emit('quiz:room-closed');
+
+    // playerSessions 정리
+    for (const [pid] of room.players) {
+      playerSessions.delete(pid);
+    }
+
+    // 방 삭제
+    quizRooms.delete(code);
     broadcastQuizRoomList();
   });
 
