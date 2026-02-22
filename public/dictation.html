@@ -331,7 +331,7 @@
     // ── 진행도 ──
     function loadProgress() {
       try { const d=JSON.parse(localStorage.getItem('dictation-progress')); if(d&&d.stages) return d; } catch(e){}
-      return { stages: { 1:{completed:0,stars:0,unlocked:true}, 2:{completed:0,stars:0,unlocked:true}, 3:{completed:0,stars:0,unlocked:false}, 4:{completed:0,stars:0,unlocked:false} } };
+      return { stages: { 1:{completed:0,stars:0,unlocked:true}, 2:{completed:0,stars:0,unlocked:true}, 3:{completed:0,stars:0,unlocked:true}, 4:{completed:0,stars:0,unlocked:true} } };
     }
     function saveProgress() { localStorage.setItem('dictation-progress', JSON.stringify(progress)); }
     function checkUnlocks() { for(let i=2;i<=4;i++){if(progress.stages[i-1].completed>=UNLOCK_THRESHOLD) progress.stages[i].unlocked=true;} saveProgress(); }
