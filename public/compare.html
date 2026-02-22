@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>길이 비교</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/icons/icon-192.svg">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #1a1a2e; --card: #16213e; --accent: #e94560; --accent2: #0f3460;
+      --gold: #f5c518; --text: #eee; --green: #4ecca3; --orange: #ff9f43; --purple: #6c5ce7;
+    }
+    body {
+      font-family: 'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100dvh; display: flex; flex-direction: column; align-items: center;
+    }
+    h1 { font-size: 1.8rem; margin: 16px 0 8px; text-align: center; }
+    .sub-text { color: #888; font-size: 0.85rem; margin: 4px 0; }
+    .screen { display: none; width: 100%; max-width: 500px; padding: 16px; }
+    .screen.active { display: flex; flex-direction: column; align-items: center; }
+    .back-btn {
+      background: none; border: 1px solid #555; color: #aaa;
+      padding: 8px 20px; border-radius: 8px; cursor: pointer; font-size: 0.9rem;
+      margin: 8px 0; text-decoration: none; display: inline-block; text-align: center;
+    }
+    .stage-list { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+    .stage-card {
+      display: flex; align-items: center; gap: 14px; padding: 16px 18px;
+      background: var(--card); border-radius: 16px; cursor: pointer;
+      border: 2px solid #333; transition: all 0.15s;
+    }
+    .stage-card:hover { border-color: var(--gold); transform: scale(1.02); }
+    .stage-card:active { transform: scale(0.97); }
+    .stage-card.locked { opacity: 0.4; pointer-events: none; }
+    .stage-num {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem; font-weight: 900; flex-shrink: 0;
+    }
+    .stage-info { flex: 1; }
+    .stage-title { font-weight: 700; font-size: 1rem; margin-bottom: 2px; }
+    .stage-desc { font-size: 0.78rem; color: #888; }
+    .progress-bar { height: 4px; background: #333; border-radius: 2px; overflow: hidden; margin-top: 4px; }
+    .progress-fill { height: 100%; background: var(--gold); border-radius: 2px; }
+    .stage-stars { font-size: 0.75rem; color: var(--gold); margin-top: 2px; }
+
+    .problem-header {
+      width: 100%; display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 0; margin-bottom: 8px;
+    }
+    .problem-counter { font-size: 0.9rem; color: #888; font-weight: 700; }
+
+    .question-text {
+      font-size: 1.3rem; font-weight: 700; text-align: center;
+      margin: 12px 0; padding: 12px; background: rgba(108,92,231,0.1);
+      border-radius: 12px; width: 100%;
+    }
+
+    /* 비교 영역 */
+    .compare-area {
+      width: 100%; min-height: 200px; padding: 20px;
+      display: flex; flex-direction: column; gap: 16px;
+      align-items: flex-start; margin: 8px 0;
+    }
+
+    .compare-item {
+      display: flex; align-items: center; gap: 12px; cursor: pointer;
+      padding: 12px; border-radius: 14px; border: 3px solid transparent;
+      transition: all 0.2s; width: 100%;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .compare-item:hover { border-color: #444; }
+    .compare-item:active { transform: scale(0.98); }
+    .compare-item.selected { border-color: var(--gold); background: rgba(245,197,24,0.08); }
+    .compare-item.correct { border-color: var(--green); background: rgba(78,204,163,0.1); }
+    .compare-item.wrong { border-color: var(--accent); background: rgba(233,69,96,0.1); }
+
+    .item-label {
+      font-size: 1.1rem; font-weight: 700; min-width: 30px;
+      text-align: center; flex-shrink: 0;
+    }
+    .item-visual { flex: 1; position: relative; }
+
+    /* 길이 막대 */
+    .bar {
+      height: 32px; border-radius: 8px; transition: width 0.5s ease;
+      position: relative;
+    }
+    .bar-a { background: linear-gradient(90deg, var(--accent), #ff6b81); }
+    .bar-b { background: linear-gradient(90deg, var(--green), #6cd4a0); }
+    .bar-c { background: linear-gradient(90deg, var(--purple), #a29bfe); }
+
+    /* 높이 블록 */
+    .height-block {
+      border-radius: 8px 8px 0 0; transition: height 0.5s ease;
+      position: absolute; bottom: 0;
+    }
+    .height-container {
+      position: relative; height: 180px; width: 80px;
+      display: flex; align-items: flex-end;
+    }
+
+    /* 넓이 도형 */
+    .area-shape {
+      border-radius: 8px; transition: all 0.5s ease;
+    }
+
+    /* 정렬 모드 */
+    .sort-area {
+      width: 100%; display: flex; flex-direction: column; gap: 12px; margin: 8px 0;
+    }
+    .sort-item {
+      display: flex; align-items: center; gap: 12px; padding: 14px;
+      background: var(--card); border-radius: 14px; border: 2px solid #333;
+      cursor: grab; transition: all 0.15s; touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .sort-item:active { cursor: grabbing; }
+    .sort-item.dragging { opacity: 0.5; border-color: var(--gold); }
+    .sort-item .sort-bar { height: 28px; border-radius: 6px; }
+    .sort-handle { font-size: 1.2rem; color: #666; }
+    .sort-label { font-size: 1rem; font-weight: 700; min-width: 30px; }
+
+    .submit-btn {
+      padding: 14px 48px; background: var(--green); color: #000;
+      font-weight: 800; font-size: 1.1rem; border: none; border-radius: 14px;
+      cursor: pointer; margin: 8px 0;
+    }
+    .next-btn {
+      padding: 14px 40px; background: var(--green); color: #000;
+      font-weight: 800; font-size: 1.1rem; border: none; border-radius: 14px;
+      cursor: pointer; margin: 8px 0;
+    }
+    .step-hint { font-size: 0.9rem; color: var(--orange); margin: 6px 0; text-align: center; }
+
+    .feedback-overlay {
+      position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
+      pointer-events: none; animation: feedbackPop 0.8s forwards;
+    }
+    .feedback-msg {
+      font-size: 1.8rem; font-weight: 900; padding: 20px 40px; border-radius: 20px;
+      animation: feedbackScale 0.5s ease;
+    }
+    .feedback-correct { background: rgba(78,204,163,0.95); color: #000; }
+    .feedback-wrong { background: rgba(233,69,96,0.95); color: #fff; }
+    @keyframes feedbackPop { 0%{opacity:1}70%{opacity:1}100%{opacity:0} }
+    @keyframes feedbackScale { 0%{transform:scale(0.5)}50%{transform:scale(1.1)}100%{transform:scale(1)} }
+
+    .complete-emoji { font-size: 4rem; margin: 16px 0; }
+    .complete-title { font-size: 1.6rem; font-weight: 900; color: var(--gold); }
+    .complete-subtitle { font-size: 1.1rem; color: #ccc; margin: 8px 0 16px; }
+    .complete-stars { font-size: 2rem; margin: 8px 0; }
+    .complete-btn { padding: 14px 36px; border: none; border-radius: 14px; font-size: 1.1rem; font-weight: 800; cursor: pointer; margin: 6px; }
+    .complete-btn.primary { background: var(--green); color: #000; }
+    .complete-btn.secondary { background: var(--card); color: var(--text); border: 1px solid #555; }
+
+    .toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: var(--accent); color: #fff; padding: 12px 24px; border-radius: 12px;
+      font-weight: 600; z-index: 200; animation: toastIn 0.3s, toastOut 0.3s 2s forwards;
+    }
+    @keyframes toastIn { from{opacity:0;transform:translateX(-50%) translateY(20px);} }
+    @keyframes toastOut { to{opacity:0;transform:translateX(-50%) translateY(20px);} }
+
+    @media (max-width: 360px) {
+      .question-text { font-size: 1.1rem; }
+      .bar { height: 26px; }
+      .height-container { height: 140px; width: 60px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- 단계 선택 -->
+  <div id="screen-stages" class="screen active">
+    <h1>📏 길이 비교</h1>
+    <p class="sub-text">어떤 것이 더 길까? 높을까? 넓을까?</p>
+    <div class="stage-list" id="stage-list"></div>
+    <a href="/" class="back-btn" style="margin-top:8px;">🏠 홈으로</a>
+  </div>
+
+  <!-- 문제 풀이 -->
+  <div id="screen-problem" class="screen">
+    <div class="problem-header">
+      <button class="back-btn" onclick="backToStages()" style="margin:0;padding:6px 14px;">← 목록</button>
+      <span class="problem-counter" id="problem-counter">1 / 10</span>
+      <span id="problem-stars" style="font-size:1rem;">⭐ 0</span>
+    </div>
+
+    <div class="question-text" id="question-text"></div>
+    <div class="compare-area" id="compare-area"></div>
+    <div id="sort-container" style="display:none; width:100%;">
+      <div class="sort-area" id="sort-area"></div>
+      <button class="submit-btn" id="btn-sort-submit" onclick="submitSort()">확인!</button>
+    </div>
+    <div id="hint-area" style="display:none" class="step-hint"></div>
+    <button class="next-btn" id="btn-next" style="display:none" onclick="nextProblem()">다음 문제 →</button>
+  </div>
+
+  <!-- 완료 -->
+  <div id="screen-complete" class="screen">
+    <div class="complete-emoji" id="complete-emoji">🏆</div>
+    <div class="complete-title" id="complete-title">단계 클리어!</div>
+    <div class="complete-subtitle" id="complete-subtitle"></div>
+    <div class="complete-stars" id="complete-stars"></div>
+    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:12px;">
+      <button class="complete-btn secondary" onclick="backToStages()">목록으로</button>
+      <button class="complete-btn secondary" onclick="retryStage()">다시 하기</button>
+      <button class="complete-btn primary" id="btn-next-stage" onclick="goNextStage()">다음 단계 →</button>
+    </div>
+  </div>
+
+  <script>
+    const STAGES = [
+      { id: 1, title: '길이 비교', desc: '어떤 것이 더 길까요?', icon: '📏', color: '#4ecca3' },
+      { id: 2, title: '높이 비교', desc: '어떤 것이 더 높을까요?', icon: '🏗️', color: '#f5c518' },
+      { id: 3, title: '넓이 비교', desc: '어떤 것이 더 넓을까요?', icon: '⬜', color: '#6c5ce7' },
+      { id: 4, title: '순서 맞추기', desc: '짧은 것부터 긴 순서로!', icon: '🔢', color: '#e94560' },
+    ];
+    const PROBLEMS_PER_SET = 10;
+    const UNLOCK_THRESHOLD = 7;
+    const ENCOURAGE = ['잘했어요! 👏','대단해요! ⭐','멋져요! 🎉','정답이에요! 😊','최고예요! 🧠','완벽해요! 💯'];
+    const ENCOURAGE_WRONG = ['괜찮아요, 다시 해봐요! 😊','다시 잘 봐요! 🤔','천천히 비교해봐요 💪'];
+    const LABELS = ['가','나','다'];
+    const BAR_CLASSES = ['bar-a','bar-b','bar-c'];
+    const COLORS = [
+      'linear-gradient(90deg, var(--accent), #ff6b81)',
+      'linear-gradient(90deg, var(--green), #6cd4a0)',
+      'linear-gradient(90deg, var(--purple), #a29bfe)',
+    ];
+
+    let currentStageId=0, currentProblemIdx=0, currentAnswer=-1, selectedIdx=-1;
+    let attempts=0, problemStars=3, sessionStars=0, sessionCompleted=0;
+    let items=[], sortOrder=[];
+    let progress = loadProgress();
+
+    function randInt(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+    function pick(arr){return arr[Math.floor(Math.random()*arr.length)];}
+    function shuffle(arr){for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
+
+    function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
+
+    const AudioCtx=window.AudioContext||window.webkitAudioContext;let audioCtx=null;
+    function getAudioCtx(){if(!audioCtx)audioCtx=new AudioCtx();if(audioCtx.state==='suspended')audioCtx.resume();return audioCtx;}
+    function playCorrectSound(){const ctx=getAudioCtx(),t=ctx.currentTime;[523,659,784].forEach((f,i)=>{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='sine';o.frequency.setValueAtTime(f,t+i*0.1);g.gain.setValueAtTime(0.25,t+i*0.1);g.gain.exponentialRampToValueAtTime(0.01,t+i*0.1+0.25);o.start(t+i*0.1);o.stop(t+i*0.1+0.25);});}
+    function playWrongSound(){const ctx=getAudioCtx(),t=ctx.currentTime;const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='square';o.frequency.setValueAtTime(200,t);g.gain.setValueAtTime(0.12,t);g.gain.exponentialRampToValueAtTime(0.01,t+0.25);o.start(t);o.stop(t+0.25);}
+    function playClearSound(){const ctx=getAudioCtx(),t=ctx.currentTime;[[523,659,784],[587,740,880],[523,659,784,1047]].forEach((chord,ci)=>{chord.forEach(f=>{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='sine';o.frequency.setValueAtTime(f,t+ci*0.3);g.gain.setValueAtTime(0.12,t+ci*0.3);g.gain.exponentialRampToValueAtTime(0.01,t+ci*0.3+0.5);o.start(t+ci*0.3);o.stop(t+ci*0.3+0.5);});});}
+
+    function loadProgress(){try{const d=JSON.parse(localStorage.getItem('compare-progress'));if(d&&d.stages)return d;}catch(e){}return{stages:{1:{completed:0,stars:0,unlocked:true},2:{completed:0,stars:0,unlocked:true},3:{completed:0,stars:0,unlocked:false},4:{completed:0,stars:0,unlocked:false}}};}
+    function saveProgress(){localStorage.setItem('compare-progress',JSON.stringify(progress));}
+    function checkUnlocks(){for(let i=2;i<=4;i++){if(progress.stages[i-1].completed>=UNLOCK_THRESHOLD)progress.stages[i].unlocked=true;}saveProgress();}
+
+    function renderStageSelect(){
+      checkUnlocks();
+      const list=document.getElementById('stage-list');list.innerHTML='';
+      STAGES.forEach(s=>{
+        const p=progress.stages[s.id];
+        const pct=Math.min(100,Math.round((p.completed/PROBLEMS_PER_SET)*100));
+        const locked=!p.unlocked;
+        const card=document.createElement('div');
+        card.className='stage-card'+(locked?' locked':'');
+        card.innerHTML=`<div class="stage-num" style="background:${s.color}20;color:${s.color};">${s.icon}</div>
+          <div class="stage-info"><div class="stage-title">${s.title}</div><div class="stage-desc">${s.desc}</div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+          <div class="stage-stars">${p.stars>0?'⭐ '+p.stars:''} ${p.completed>0?p.completed+'/'+PROBLEMS_PER_SET+' 완료':''}</div></div>
+          ${locked?'<span style="color:#555;font-size:1.2rem;">🔒</span>':'<span style="color:#555;font-size:1.2rem;">→</span>'}`;
+        if(!locked)card.onclick=()=>startStage(s.id);
+        list.appendChild(card);
+      });
+    }
+
+    // ── 문제 생성 ──
+    function generateProblem(stageId) {
+      const count = stageId === 4 ? 3 : 2;
+      const sizes = [];
+      for (let i = 0; i < count; i++) {
+        let s;
+        do { s = randInt(20, 95); } while (sizes.some(v => Math.abs(v - s) < 10));
+        sizes.push(s);
+      }
+      const maxIdx = sizes.indexOf(Math.max(...sizes));
+      const minIdx = sizes.indexOf(Math.min(...sizes));
+      // 질문 유형: 더 긴/높은/넓은 것 or 더 짧은/낮은/좁은 것
+      const askBigger = Math.random() < 0.5;
+      return { sizes, maxIdx, minIdx, askBigger, sortedIndices: [...sizes].map((s,i)=>i).sort((a,b)=>sizes[a]-sizes[b]) };
+    }
+
+    // ── 게임 플로우 ──
+    function startStage(stageId){
+      getAudioCtx(); currentStageId=stageId; currentProblemIdx=0; sessionStars=0; sessionCompleted=0;
+      showScreen('screen-problem'); loadProblem();
+    }
+
+    function loadProblem(){
+      const prob = generateProblem(currentStageId);
+      items = prob.sizes;
+      currentAnswer = prob.askBigger ? prob.maxIdx : prob.minIdx;
+      selectedIdx = -1;
+      attempts = 0; problemStars = 3;
+
+      document.getElementById('problem-counter').textContent=`${currentProblemIdx+1} / ${PROBLEMS_PER_SET}`;
+      document.getElementById('problem-stars').textContent='⭐ '+sessionStars;
+      document.getElementById('hint-area').style.display='none';
+      document.getElementById('btn-next').style.display='none';
+
+      const q = document.getElementById('question-text');
+      const area = document.getElementById('compare-area');
+      const sortCont = document.getElementById('sort-container');
+      area.innerHTML='';
+
+      if (currentStageId <= 3) {
+        sortCont.style.display='none';
+        area.style.display='flex';
+        const types = ['길이','높이','넓이'];
+        const bigWords = ['더 긴','더 높은','더 넓은'];
+        const smallWords = ['더 짧은','더 낮은','더 좁은'];
+        q.textContent = `${prob.askBigger ? bigWords[currentStageId-1] : smallWords[currentStageId-1]} 것을 골라보세요!`;
+
+        if (currentStageId === 1) renderLengthItems(area, prob);
+        else if (currentStageId === 2) renderHeightItems(area, prob);
+        else renderAreaItems(area, prob);
+      } else {
+        // 정렬 모드
+        area.style.display='none';
+        sortCont.style.display='block';
+        document.getElementById('btn-sort-submit').style.display='';
+        q.textContent = '짧은 것부터 긴 순서로 정렬해보세요!';
+        sortOrder = shuffle([...Array(items.length).keys()]);
+        renderSortItems(prob);
+      }
+    }
+
+    function renderLengthItems(area, prob) {
+      prob.sizes.forEach((size, i) => {
+        const item = document.createElement('div');
+        item.className = 'compare-item';
+        item.dataset.idx = i;
+        item.onclick = () => selectItem(i);
+        item.innerHTML = `<span class="item-label">${LABELS[i]}</span>
+          <div class="item-visual"><div class="bar ${BAR_CLASSES[i]}" style="width:${size}%"></div></div>`;
+        area.appendChild(item);
+      });
+    }
+
+    function renderHeightItems(area, prob) {
+      area.style.flexDirection = 'row';
+      area.style.justifyContent = 'center';
+      area.style.alignItems = 'flex-end';
+      area.style.gap = '24px';
+      prob.sizes.forEach((size, i) => {
+        const item = document.createElement('div');
+        item.className = 'compare-item';
+        item.dataset.idx = i;
+        item.style.cssText = 'flex-direction:column;width:auto;padding:8px 16px;align-items:center;';
+        item.onclick = () => selectItem(i);
+        const h = Math.round(size * 1.6);
+        item.innerHTML = `<div class="height-container"><div class="height-block" style="height:${h}px;width:60px;background:${COLORS[i]};border-radius:8px 8px 0 0;"></div></div>
+          <span class="item-label" style="margin-top:8px;">${LABELS[i]}</span>`;
+        area.appendChild(item);
+      });
+    }
+
+    function renderAreaItems(area, prob) {
+      area.style.flexDirection = 'row';
+      area.style.justifyContent = 'center';
+      area.style.alignItems = 'center';
+      area.style.gap = '16px';
+      prob.sizes.forEach((size, i) => {
+        const item = document.createElement('div');
+        item.className = 'compare-item';
+        item.dataset.idx = i;
+        item.style.cssText = 'flex-direction:column;width:auto;padding:12px;align-items:center;';
+        item.onclick = () => selectItem(i);
+        const s = Math.round(size * 1.2) + 30;
+        item.innerHTML = `<div class="area-shape" style="width:${s}px;height:${s}px;background:${COLORS[i]};border-radius:12px;"></div>
+          <span class="item-label" style="margin-top:8px;">${LABELS[i]}</span>`;
+        area.appendChild(item);
+      });
+    }
+
+    function selectItem(idx) {
+      if (document.getElementById('btn-next').style.display !== 'none') return;
+      getAudioCtx();
+      selectedIdx = idx;
+
+      // 선택 표시
+      document.querySelectorAll('.compare-item').forEach((el,i) => {
+        el.classList.toggle('selected', i === idx);
+      });
+
+      // 바로 채점
+      checkAnswer();
+    }
+
+    function checkAnswer() {
+      if (selectedIdx === currentAnswer) {
+        playCorrectSound();
+        sessionStars += problemStars;
+        sessionCompleted++;
+        currentProblemIdx++;
+
+        showFeedback(true, pick(ENCOURAGE));
+        document.querySelectorAll('.compare-item').forEach(el => el.classList.remove('selected'));
+        document.querySelectorAll('.compare-item')[selectedIdx].classList.add('correct');
+        document.getElementById('problem-stars').textContent='⭐ '+sessionStars;
+
+        if (currentProblemIdx >= PROBLEMS_PER_SET) {
+          setTimeout(()=>completeStage(),1000);
+        } else {
+          document.getElementById('btn-next').style.display='';
+        }
+      } else {
+        attempts++;
+        playWrongSound();
+        showFeedback(false, pick(ENCOURAGE_WRONG));
+        document.querySelectorAll('.compare-item')[selectedIdx].classList.add('wrong');
+        setTimeout(() => {
+          document.querySelectorAll('.compare-item')[selectedIdx].classList.remove('wrong','selected');
+        }, 500);
+
+        if (attempts===1) problemStars=Math.min(problemStars,2);
+        if (attempts>=2) {
+          problemStars=Math.min(problemStars,1);
+          document.getElementById('hint-area').style.display='block';
+          document.getElementById('hint-area').textContent='💡 잘 비교해보세요! 눈을 가늘게 뜨고 봐요!';
+        }
+        if (attempts>=3) {
+          problemStars=0;
+          // 정답 보여주기
+          document.querySelectorAll('.compare-item')[currentAnswer].classList.add('correct');
+          document.getElementById('hint-area').textContent=`정답은 "${LABELS[currentAnswer]}"예요! 💪`;
+          sessionCompleted++; currentProblemIdx++;
+          if(currentProblemIdx>=PROBLEMS_PER_SET){setTimeout(()=>completeStage(),1500);}
+          else{document.getElementById('btn-next').style.display='';}
+        }
+        selectedIdx = -1;
+      }
+    }
+
+    // ── 정렬 모드 ──
+    function renderSortItems(prob) {
+      const area = document.getElementById('sort-area');
+      area.innerHTML = '';
+      sortOrder.forEach((origIdx, pos) => {
+        const item = document.createElement('div');
+        item.className = 'sort-item';
+        item.dataset.origIdx = origIdx;
+        item.dataset.pos = pos;
+        item.draggable = false;
+
+        // 위/아래 버튼으로 이동
+        item.innerHTML = `<span class="sort-handle">☰</span>
+          <span class="sort-label">${LABELS[origIdx]}</span>
+          <div style="flex:1;"><div class="sort-bar" style="width:${items[origIdx]}%;background:${COLORS[origIdx]};"></div></div>
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            <button onclick="moveSort(${pos},-1)" style="background:var(--card);border:1px solid #555;color:#aaa;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:1rem;">▲</button>
+            <button onclick="moveSort(${pos},1)" style="background:var(--card);border:1px solid #555;color:#aaa;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:1rem;">▼</button>
+          </div>`;
+        area.appendChild(item);
+      });
+    }
+
+    function moveSort(pos, dir) {
+      const newPos = pos + dir;
+      if (newPos < 0 || newPos >= sortOrder.length) return;
+      [sortOrder[pos], sortOrder[newPos]] = [sortOrder[newPos], sortOrder[pos]];
+      renderSortItems({ sizes: items });
+    }
+
+    function submitSort() {
+      getAudioCtx();
+      // 정답: 크기 순서대로 정렬
+      const correctOrder = [...items].map((s,i)=>i).sort((a,b)=>items[a]-items[b]);
+      const isCorrect = sortOrder.every((v,i)=>v===correctOrder[i]);
+
+      if (isCorrect) {
+        playCorrectSound();
+        sessionStars += problemStars;
+        sessionCompleted++; currentProblemIdx++;
+        showFeedback(true, pick(ENCOURAGE));
+        document.getElementById('problem-stars').textContent='⭐ '+sessionStars;
+        document.getElementById('btn-sort-submit').style.display='none';
+        if(currentProblemIdx>=PROBLEMS_PER_SET){setTimeout(()=>completeStage(),1000);}
+        else{document.getElementById('btn-next').style.display='';}
+      } else {
+        attempts++;
+        playWrongSound();
+        showFeedback(false, pick(ENCOURAGE_WRONG));
+        if(attempts===1)problemStars=Math.min(problemStars,2);
+        if(attempts>=2){
+          problemStars=Math.min(problemStars,1);
+          document.getElementById('hint-area').style.display='block';
+          document.getElementById('hint-area').textContent='💡 막대가 가장 짧은 것을 맨 위로 올려보세요!';
+        }
+        if(attempts>=3){
+          problemStars=0;
+          sortOrder=[...correctOrder];
+          renderSortItems({sizes:items});
+          document.getElementById('hint-area').textContent=`정답은 이 순서예요! 💪`;
+          document.getElementById('btn-sort-submit').style.display='none';
+          sessionCompleted++;currentProblemIdx++;
+          if(currentProblemIdx>=PROBLEMS_PER_SET){setTimeout(()=>completeStage(),1500);}
+          else{document.getElementById('btn-next').style.display='';}
+        }
+      }
+    }
+
+    function nextProblem(){document.getElementById('btn-next').style.display='none';loadProblem();}
+
+    function completeStage(){
+      const p=progress.stages[currentStageId];
+      p.completed=Math.max(p.completed,sessionCompleted);
+      p.stars=Math.max(p.stars,sessionStars);
+      checkUnlocks();saveProgress();
+      playClearSound();showScreen('screen-complete');
+      document.getElementById('complete-emoji').textContent=pick(['🏆','🎉','🥳','⭐','👑']);
+      document.getElementById('complete-title').textContent=`${STAGES[currentStageId-1].title} 클리어!`;
+      document.getElementById('complete-subtitle').textContent=`${sessionCompleted}문제 완료!`;
+      document.getElementById('complete-stars').textContent='⭐ '+sessionStars+'개 획득!';
+      const nextBtn=document.getElementById('btn-next-stage');
+      nextBtn.style.display=(currentStageId<4&&progress.stages[currentStageId+1]&&progress.stages[currentStageId+1].unlocked)?'inline-block':'none';
+    }
+
+    function backToStages(){
+      showScreen('screen-stages');renderStageSelect();
+      // reset flex direction
+      const area=document.getElementById('compare-area');
+      area.style.flexDirection='column';area.style.alignItems='flex-start';area.style.justifyContent='';area.style.gap='16px';
+    }
+    function retryStage(){startStage(currentStageId);}
+    function goNextStage(){if(currentStageId<4)startStage(currentStageId+1);}
+
+    function showFeedback(correct,msg){
+      const overlay=document.createElement('div');overlay.className='feedback-overlay';
+      const m=document.createElement('div');m.className='feedback-msg '+(correct?'feedback-correct':'feedback-wrong');m.textContent=msg;
+      overlay.appendChild(m);document.body.appendChild(overlay);setTimeout(()=>overlay.remove(),800);
+    }
+
+    renderStageSelect();
+  </script>
+</body>
+</html>

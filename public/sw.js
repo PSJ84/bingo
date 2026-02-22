@@ -1,10 +1,13 @@
-const CACHE_NAME = 'family-game-v2';
+const CACHE_NAME = 'family-game-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/bingo.html',
   '/quiz.html',
   '/math.html',
+  '/clock.html',
+  '/dictation.html',
+  '/compare.html',
   '/manifest.json',
   '/icons/icon-192.svg',
   '/icons/icon-512.svg',

@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>시계 읽기</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/icons/icon-192.svg">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #1a1a2e; --card: #16213e; --accent: #e94560; --accent2: #0f3460;
+      --gold: #f5c518; --text: #eee; --green: #4ecca3; --orange: #ff9f43; --purple: #6c5ce7;
+    }
+    body {
+      font-family: 'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100dvh; display: flex; flex-direction: column; align-items: center;
+    }
+    h1 { font-size: 1.8rem; margin: 16px 0 8px; text-align: center; }
+    .sub-text { color: #888; font-size: 0.85rem; margin: 4px 0; }
+    .screen { display: none; width: 100%; max-width: 500px; padding: 16px; }
+    .screen.active { display: flex; flex-direction: column; align-items: center; }
+    .back-btn {
+      background: none; border: 1px solid #555; color: #aaa;
+      padding: 8px 20px; border-radius: 8px; cursor: pointer; font-size: 0.9rem;
+      margin: 8px 0; text-decoration: none; display: inline-block; text-align: center;
+    }
+
+    /* 단계 선택 */
+    .stage-list { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+    .stage-card {
+      display: flex; align-items: center; gap: 14px; padding: 16px 18px;
+      background: var(--card); border-radius: 16px; cursor: pointer;
+      border: 2px solid #333; transition: all 0.15s;
+    }
+    .stage-card:hover { border-color: var(--gold); transform: scale(1.02); }
+    .stage-card:active { transform: scale(0.97); }
+    .stage-card.locked { opacity: 0.4; pointer-events: none; }
+    .stage-num {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem; font-weight: 900; flex-shrink: 0;
+    }
+    .stage-info { flex: 1; }
+    .stage-title { font-weight: 700; font-size: 1rem; margin-bottom: 2px; }
+    .stage-desc { font-size: 0.78rem; color: #888; }
+    .progress-bar { height: 4px; background: #333; border-radius: 2px; overflow: hidden; margin-top: 4px; }
+    .progress-fill { height: 100%; background: var(--gold); border-radius: 2px; }
+    .stage-stars { font-size: 0.75rem; color: var(--gold); margin-top: 2px; }
+
+    /* 문제 화면 */
+    .problem-header {
+      width: 100%; display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 0; margin-bottom: 8px;
+    }
+    .problem-counter { font-size: 0.9rem; color: #888; font-weight: 700; }
+    .problem-stars-display { font-size: 1rem; }
+
+    /* 시계 */
+    .clock-container { position: relative; margin: 12px 0; }
+    .clock-face {
+      width: 260px; height: 260px; border-radius: 50%;
+      background: #f0f0f0; border: 6px solid var(--gold);
+      position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .clock-center {
+      position: absolute; top: 50%; left: 50%; width: 12px; height: 12px;
+      background: #333; border-radius: 50%; transform: translate(-50%, -50%); z-index: 10;
+    }
+    .clock-number {
+      position: absolute; font-size: 1.2rem; font-weight: 800; color: #333;
+      width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+    }
+    .hour-hand {
+      position: absolute; bottom: 50%; left: 50%;
+      width: 6px; height: 70px; background: #333; border-radius: 3px;
+      transform-origin: bottom center; transform: translateX(-50%) rotate(0deg);
+      transition: transform 0.3s ease;
+    }
+    .minute-hand {
+      position: absolute; bottom: 50%; left: 50%;
+      width: 4px; height: 95px; background: var(--accent); border-radius: 2px;
+      transform-origin: bottom center; transform: translateX(-50%) rotate(0deg);
+      transition: transform 0.3s ease;
+    }
+    .clock-tick {
+      position: absolute; top: 50%; left: 50%;
+      width: 2px; height: 8px; background: #999;
+      transform-origin: 0 0;
+    }
+    .clock-tick.major { height: 14px; width: 3px; background: #555; }
+
+    /* 질문 */
+    .question-text {
+      font-size: 1.3rem; font-weight: 700; text-align: center;
+      margin: 12px 0; padding: 12px; background: rgba(108,92,231,0.1); border-radius: 12px;
+      width: 100%;
+    }
+
+    /* 시간 입력 */
+    .time-input {
+      display: flex; align-items: center; gap: 8px; margin: 12px 0;
+      font-size: 1.8rem; font-weight: 900;
+    }
+    .time-field {
+      width: 80px; height: 60px; text-align: center; font-size: 1.8rem; font-weight: 900;
+      background: var(--card); border: 2px solid #444; border-radius: 12px;
+      color: var(--text); outline: none; -webkit-appearance: none;
+    }
+    .time-field:focus { border-color: var(--gold); }
+    .time-sep { color: var(--gold); }
+
+    .submit-btn {
+      padding: 14px 48px; background: var(--green); color: #000;
+      font-weight: 800; font-size: 1.1rem; border: none; border-radius: 14px;
+      cursor: pointer; margin: 8px 0;
+    }
+    .submit-btn:active { transform: scale(0.96); }
+
+    .next-btn {
+      padding: 14px 40px; background: var(--green); color: #000;
+      font-weight: 800; font-size: 1.1rem; border: none; border-radius: 14px;
+      cursor: pointer; margin: 8px 0;
+    }
+
+    /* 피드백 */
+    .feedback-overlay {
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: none; animation: feedbackPop 0.8s forwards;
+    }
+    .feedback-msg {
+      font-size: 1.8rem; font-weight: 900; padding: 20px 40px;
+      border-radius: 20px; animation: feedbackScale 0.5s ease;
+    }
+    .feedback-correct { background: rgba(78,204,163,0.95); color: #000; }
+    .feedback-wrong { background: rgba(233,69,96,0.95); color: #fff; }
+    @keyframes feedbackPop { 0% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
+    @keyframes feedbackScale { 0% { transform: scale(0.5); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+    .step-hint { font-size: 0.9rem; color: var(--orange); margin: 6px 0; }
+
+    /* 완료 */
+    .complete-emoji { font-size: 4rem; margin: 16px 0; }
+    .complete-title { font-size: 1.6rem; font-weight: 900; color: var(--gold); }
+    .complete-subtitle { font-size: 1.1rem; color: #ccc; margin: 8px 0 16px; }
+    .complete-stars { font-size: 2rem; margin: 8px 0; }
+    .complete-btn {
+      padding: 14px 36px; border: none; border-radius: 14px;
+      font-size: 1.1rem; font-weight: 800; cursor: pointer; margin: 6px;
+    }
+    .complete-btn.primary { background: var(--green); color: #000; }
+    .complete-btn.secondary { background: var(--card); color: var(--text); border: 1px solid #555; }
+
+    .toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: var(--accent); color: #fff; padding: 12px 24px; border-radius: 12px;
+      font-weight: 600; z-index: 200; animation: toastIn 0.3s, toastOut 0.3s 2s forwards;
+    }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(20px); } }
+    @keyframes toastOut { to { opacity: 0; transform: translateX(-50%) translateY(20px); } }
+
+    @media (max-width: 360px) {
+      .clock-face { width: 220px; height: 220px; }
+      .hour-hand { height: 58px; }
+      .minute-hand { height: 78px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- 단계 선택 -->
+  <div id="screen-stages" class="screen active">
+    <h1>🕐 시계 읽기</h1>
+    <p class="sub-text">시계를 보고 시간을 맞춰봐요!</p>
+    <div class="stage-list" id="stage-list"></div>
+    <a href="/" class="back-btn" style="margin-top:8px;">🏠 홈으로</a>
+  </div>
+
+  <!-- 문제 풀이 -->
+  <div id="screen-problem" class="screen">
+    <div class="problem-header">
+      <button class="back-btn" onclick="backToStages()" style="margin:0;padding:6px 14px;">← 목록</button>
+      <span class="problem-counter" id="problem-counter">1 / 10</span>
+      <span class="problem-stars-display" id="problem-stars"></span>
+    </div>
+
+    <div class="clock-container">
+      <div class="clock-face" id="clock-face">
+        <div class="clock-center"></div>
+        <div class="hour-hand" id="hour-hand"></div>
+        <div class="minute-hand" id="minute-hand"></div>
+      </div>
+    </div>
+
+    <div class="question-text" id="question-text">지금 몇 시일까요?</div>
+
+    <div class="time-input" id="time-input">
+      <input type="number" class="time-field" id="input-hour" min="1" max="12" placeholder="시" inputmode="numeric">
+      <span class="time-sep">:</span>
+      <input type="number" class="time-field" id="input-minute" min="0" max="59" placeholder="분" inputmode="numeric">
+    </div>
+
+    <div id="hint-area" style="display:none" class="step-hint"></div>
+
+    <button class="submit-btn" id="btn-submit" onclick="submitAnswer()">확인!</button>
+    <button class="next-btn" id="btn-next" style="display:none" onclick="nextProblem()">다음 문제 →</button>
+  </div>
+
+  <!-- 완료 -->
+  <div id="screen-complete" class="screen">
+    <div class="complete-emoji" id="complete-emoji">🏆</div>
+    <div class="complete-title" id="complete-title">단계 클리어!</div>
+    <div class="complete-subtitle" id="complete-subtitle"></div>
+    <div class="complete-stars" id="complete-stars"></div>
+    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:12px;">
+      <button class="complete-btn secondary" onclick="backToStages()">목록으로</button>
+      <button class="complete-btn secondary" onclick="retryStage()">다시 하기</button>
+      <button class="complete-btn primary" id="btn-next-stage" onclick="goNextStage()">다음 단계 →</button>
+    </div>
+  </div>
+
+  <script>
+    const STAGES = [
+      { id: 1, title: '정각 읽기', desc: '몇 시?', icon: '🕐', color: '#4ecca3' },
+      { id: 2, title: '30분 읽기', desc: '몇 시 30분', icon: '🕜', color: '#f5c518' },
+      { id: 3, title: '5분 단위', desc: '5분, 10분, 15분...', icon: '🕝', color: '#6c5ce7' },
+      { id: 4, title: '1분 단위', desc: '정확한 시간 읽기', icon: '🕰️', color: '#e94560' },
+    ];
+    const PROBLEMS_PER_SET = 10;
+    const UNLOCK_THRESHOLD = 7;
+    const ENCOURAGE = ['잘했어요! 👏','대단해요! ⭐','멋져요! 🎉','정답이에요! 😊','최고예요! 🧠','완벽해요! 💯'];
+    const ENCOURAGE_WRONG = ['괜찮아요, 다시 해봐요! 😊','조금만 더 생각해봐요! 🤔','천천히 해도 괜찮아요 💪'];
+
+    let currentStageId = 0, currentProblemIdx = 0, currentHour = 0, currentMinute = 0;
+    let attempts = 0, problemStars = 3, sessionStars = 0, sessionCompleted = 0;
+    let progress = loadProgress();
+
+    function randInt(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+    function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    // ── 효과음 ──
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+    function getAudioCtx() { if (!audioCtx) audioCtx = new AudioCtx(); if (audioCtx.state === 'suspended') audioCtx.resume(); return audioCtx; }
+    function playCorrectSound() {
+      const ctx = getAudioCtx(), t = ctx.currentTime;
+      [523,659,784].forEach((f,i) => { const o=ctx.createOscillator(),g=ctx.createGain(); o.connect(g);g.connect(ctx.destination);o.type='sine'; o.frequency.setValueAtTime(f,t+i*0.1);g.gain.setValueAtTime(0.25,t+i*0.1);g.gain.exponentialRampToValueAtTime(0.01,t+i*0.1+0.25);o.start(t+i*0.1);o.stop(t+i*0.1+0.25); });
+    }
+    function playWrongSound() {
+      const ctx = getAudioCtx(), t = ctx.currentTime;
+      const o=ctx.createOscillator(),g=ctx.createGain(); o.connect(g);g.connect(ctx.destination);o.type='square'; o.frequency.setValueAtTime(200,t);g.gain.setValueAtTime(0.12,t);g.gain.exponentialRampToValueAtTime(0.01,t+0.25);o.start(t);o.stop(t+0.25);
+    }
+    function playClearSound() {
+      const ctx = getAudioCtx(), t = ctx.currentTime;
+      [[523,659,784],[587,740,880],[523,659,784,1047]].forEach((chord,ci) => { chord.forEach(f => { const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='sine';o.frequency.setValueAtTime(f,t+ci*0.3);g.gain.setValueAtTime(0.12,t+ci*0.3);g.gain.exponentialRampToValueAtTime(0.01,t+ci*0.3+0.5);o.start(t+ci*0.3);o.stop(t+ci*0.3+0.5); }); });
+    }
+
+    // ── 진행도 ──
+    function loadProgress() {
+      try { const d = JSON.parse(localStorage.getItem('clock-progress')); if (d && d.stages) return d; } catch(e) {}
+      return { stages: { 1:{completed:0,stars:0,unlocked:true}, 2:{completed:0,stars:0,unlocked:false}, 3:{completed:0,stars:0,unlocked:false}, 4:{completed:0,stars:0,unlocked:false} } };
+    }
+    function saveProgress() { localStorage.setItem('clock-progress', JSON.stringify(progress)); }
+    function checkUnlocks() { for (let i=2;i<=4;i++) { if (progress.stages[i-1].completed >= UNLOCK_THRESHOLD) progress.stages[i].unlocked = true; } saveProgress(); }
+
+    // ── 시계 렌더링 ──
+    function initClock() {
+      const face = document.getElementById('clock-face');
+      // 기존 숫자/틱 제거
+      face.querySelectorAll('.clock-number, .clock-tick').forEach(e => e.remove());
+      const r = face.offsetWidth / 2;
+      // 숫자
+      for (let i = 1; i <= 12; i++) {
+        const angle = (i * 30 - 90) * Math.PI / 180;
+        const x = r + (r - 30) * Math.cos(angle) - 15;
+        const y = r + (r - 30) * Math.sin(angle) - 15;
+        const num = document.createElement('div');
+        num.className = 'clock-number';
+        num.textContent = i;
+        num.style.left = x + 'px'; num.style.top = y + 'px';
+        face.appendChild(num);
+      }
+      // 분 눈금
+      for (let i = 0; i < 60; i++) {
+        const tick = document.createElement('div');
+        tick.className = 'clock-tick' + (i % 5 === 0 ? ' major' : '');
+        const angle = i * 6;
+        const len = i % 5 === 0 ? 14 : 8;
+        const outerR = r - 6;
+        const rad = (angle - 90) * Math.PI / 180;
+        const x1 = r + outerR * Math.cos(rad);
+        const y1 = r + outerR * Math.sin(rad);
+        tick.style.left = x1 + 'px'; tick.style.top = y1 + 'px';
+        tick.style.transform = `translate(-50%, 0) rotate(${angle}deg)`;
+        tick.style.transformOrigin = 'top center';
+        face.appendChild(tick);
+      }
+    }
+
+    function setClockHands(hour, minute) {
+      const hourAngle = (hour % 12) * 30 + minute * 0.5;
+      const minuteAngle = minute * 6;
+      document.getElementById('hour-hand').style.transform = `translateX(-50%) rotate(${hourAngle}deg)`;
+      document.getElementById('minute-hand').style.transform = `translateX(-50%) rotate(${minuteAngle}deg)`;
+    }
+
+    // ── 문제 생성 ──
+    function generateTime(stageId) {
+      const hour = randInt(1, 12);
+      let minute;
+      switch (stageId) {
+        case 1: minute = 0; break;
+        case 2: minute = Math.random() < 0.5 ? 0 : 30; break;
+        case 3: minute = randInt(0, 11) * 5; break;
+        case 4: minute = randInt(0, 59); break;
+      }
+      return { hour, minute };
+    }
+
+    // ── 단계 선택 ──
+    function renderStageSelect() {
+      checkUnlocks();
+      const list = document.getElementById('stage-list');
+      list.innerHTML = '';
+      STAGES.forEach(s => {
+        const p = progress.stages[s.id];
+        const pct = Math.min(100, Math.round((p.completed / PROBLEMS_PER_SET) * 100));
+        const locked = !p.unlocked;
+        const card = document.createElement('div');
+        card.className = 'stage-card' + (locked ? ' locked' : '');
+        card.innerHTML = `
+          <div class="stage-num" style="background:${s.color}20;color:${s.color};">${s.icon}</div>
+          <div class="stage-info">
+            <div class="stage-title">${s.title}</div>
+            <div class="stage-desc">${s.desc}</div>
+            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+            <div class="stage-stars">${p.stars > 0 ? '⭐ '+p.stars : ''} ${p.completed > 0 ? p.completed+'/'+PROBLEMS_PER_SET+' 완료' : ''}</div>
+          </div>
+          ${locked ? '<span style="color:#555;font-size:1.2rem;">🔒</span>' : '<span style="color:#555;font-size:1.2rem;">→</span>'}`;
+        if (!locked) card.onclick = () => startStage(s.id);
+        list.appendChild(card);
+      });
+    }
+
+    // ── 게임 플로우 ──
+    function startStage(stageId) {
+      getAudioCtx();
+      currentStageId = stageId;
+      currentProblemIdx = 0;
+      sessionStars = 0; sessionCompleted = 0;
+      showScreen('screen-problem');
+      setTimeout(() => { initClock(); loadProblem(); }, 50);
+    }
+
+    function loadProblem() {
+      const time = generateTime(currentStageId);
+      currentHour = time.hour;
+      currentMinute = time.minute;
+      attempts = 0; problemStars = 3;
+
+      document.getElementById('problem-counter').textContent = `${currentProblemIdx + 1} / ${PROBLEMS_PER_SET}`;
+      document.getElementById('problem-stars').textContent = '⭐ ' + sessionStars;
+
+      setClockHands(currentHour, currentMinute);
+
+      // 질문 설정
+      const q = document.getElementById('question-text');
+      if (currentStageId === 1) {
+        q.textContent = '지금 몇 시일까요?';
+        document.getElementById('input-minute').style.display = 'none';
+        document.querySelector('.time-sep').style.display = 'none';
+      } else {
+        q.textContent = '지금 몇 시 몇 분일까요?';
+        document.getElementById('input-minute').style.display = '';
+        document.querySelector('.time-sep').style.display = '';
+      }
+
+      document.getElementById('input-hour').value = '';
+      document.getElementById('input-minute').value = '';
+      document.getElementById('input-hour').focus();
+      document.getElementById('btn-submit').style.display = '';
+      document.getElementById('btn-next').style.display = 'none';
+      document.getElementById('hint-area').style.display = 'none';
+    }
+
+    function submitAnswer() {
+      getAudioCtx();
+      const h = parseInt(document.getElementById('input-hour').value);
+      const m = currentStageId === 1 ? 0 : parseInt(document.getElementById('input-minute').value);
+
+      if (isNaN(h) || (currentStageId > 1 && isNaN(m))) {
+        showFeedback(false, '시간을 입력해주세요!');
+        return;
+      }
+
+      if (h === currentHour && m === currentMinute) {
+        // 정답
+        playCorrectSound();
+        sessionStars += problemStars;
+        sessionCompleted++;
+        currentProblemIdx++;
+
+        const answerText = currentMinute === 0
+          ? `${currentHour}시 정각`
+          : `${currentHour}시 ${currentMinute}분`;
+        showFeedback(true, pick(ENCOURAGE));
+        document.getElementById('question-text').innerHTML = `<span style="color:var(--green)">${answerText}</span> ${problemStars > 0 ? '⭐'.repeat(problemStars) : ''}`;
+        document.getElementById('problem-stars').textContent = '⭐ ' + sessionStars;
+        document.getElementById('btn-submit').style.display = 'none';
+
+        if (currentProblemIdx >= PROBLEMS_PER_SET) {
+          setTimeout(() => completeStage(), 1000);
+        } else {
+          document.getElementById('btn-next').style.display = '';
+        }
+      } else {
+        // 오답
+        attempts++;
+        playWrongSound();
+        showFeedback(false, pick(ENCOURAGE_WRONG));
+        if (attempts === 1) problemStars = Math.min(problemStars, 2);
+        if (attempts >= 2) {
+          problemStars = Math.min(problemStars, 1);
+          const hint = document.getElementById('hint-area');
+          hint.style.display = 'block';
+          if (currentStageId === 1) {
+            hint.textContent = `💡 짧은 바늘(시침)이 가리키는 숫자를 보세요!`;
+          } else {
+            hint.textContent = `💡 짧은 바늘 → 시, 긴 바늘 → 분! 긴 바늘이 12를 가리키면 0분이에요.`;
+          }
+        }
+        if (attempts >= 3) {
+          problemStars = 0;
+          const hint = document.getElementById('hint-area');
+          const answerText = currentMinute === 0 ? `${currentHour}시` : `${currentHour}시 ${currentMinute}분`;
+          hint.textContent = `정답은 ${answerText}이에요! 💪`;
+          document.getElementById('btn-submit').style.display = 'none';
+          sessionCompleted++;
+          currentProblemIdx++;
+          sessionStars += problemStars;
+          if (currentProblemIdx >= PROBLEMS_PER_SET) {
+            setTimeout(() => completeStage(), 1500);
+          } else {
+            document.getElementById('btn-next').style.display = '';
+          }
+        }
+      }
+    }
+
+    function nextProblem() {
+      document.getElementById('btn-next').style.display = 'none';
+      loadProblem();
+    }
+
+    function completeStage() {
+      const p = progress.stages[currentStageId];
+      p.completed = Math.max(p.completed, sessionCompleted);
+      p.stars = Math.max(p.stars, sessionStars);
+      checkUnlocks(); saveProgress();
+      playClearSound();
+      showScreen('screen-complete');
+      document.getElementById('complete-emoji').textContent = pick(['🏆','🎉','🥳','⭐','👑']);
+      document.getElementById('complete-title').textContent = `${STAGES[currentStageId-1].title} 클리어!`;
+      document.getElementById('complete-subtitle').textContent = `${sessionCompleted}문제 완료!`;
+      document.getElementById('complete-stars').textContent = '⭐ ' + sessionStars + '개 획득!';
+      const nextBtn = document.getElementById('btn-next-stage');
+      nextBtn.style.display = (currentStageId < 4 && progress.stages[currentStageId+1] && progress.stages[currentStageId+1].unlocked) ? 'inline-block' : 'none';
+    }
+
+    function backToStages() { showScreen('screen-stages'); renderStageSelect(); }
+    function retryStage() { startStage(currentStageId); }
+    function goNextStage() { if (currentStageId < 4) startStage(currentStageId + 1); }
+
+    function showFeedback(correct, msg) {
+      const overlay = document.createElement('div');
+      overlay.className = 'feedback-overlay';
+      const m = document.createElement('div');
+      m.className = 'feedback-msg ' + (correct ? 'feedback-correct' : 'feedback-wrong');
+      m.textContent = msg;
+      overlay.appendChild(m);
+      document.body.appendChild(overlay);
+      setTimeout(() => overlay.remove(), 800);
+    }
+
+    // 엔터키 입력
+    document.getElementById('input-hour').addEventListener('keydown', e => { if (e.key === 'Enter') { if (currentStageId > 1) document.getElementById('input-minute').focus(); else submitAnswer(); } });
+    document.getElementById('input-minute').addEventListener('keydown', e => { if (e.key === 'Enter') submitAnswer(); });
+
+    renderStageSelect();
+  </script>
+</body>
+</html>

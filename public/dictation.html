@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>받아쓰기 연습</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/icons/icon-192.svg">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #1a1a2e; --card: #16213e; --accent: #e94560; --accent2: #0f3460;
+      --gold: #f5c518; --text: #eee; --green: #4ecca3; --orange: #ff9f43; --purple: #6c5ce7;
+    }
+    body {
+      font-family: 'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100dvh; display: flex; flex-direction: column; align-items: center;
+    }
+    h1 { font-size: 1.8rem; margin: 16px 0 8px; text-align: center; }
+    .sub-text { color: #888; font-size: 0.85rem; margin: 4px 0; }
+    .screen { display: none; width: 100%; max-width: 500px; padding: 16px; }
+    .screen.active { display: flex; flex-direction: column; align-items: center; }
+    .back-btn {
+      background: none; border: 1px solid #555; color: #aaa;
+      padding: 8px 20px; border-radius: 8px; cursor: pointer; font-size: 0.9rem;
+      margin: 8px 0; text-decoration: none; display: inline-block; text-align: center;
+    }
+    .stage-list { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+    .stage-card {
+      display: flex; align-items: center; gap: 14px; padding: 16px 18px;
+      background: var(--card); border-radius: 16px; cursor: pointer;
+      border: 2px solid #333; transition: all 0.15s;
+    }
+    .stage-card:hover { border-color: var(--gold); transform: scale(1.02); }
+    .stage-card:active { transform: scale(0.97); }
+    .stage-card.locked { opacity: 0.4; pointer-events: none; }
+    .stage-num {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem; font-weight: 900; flex-shrink: 0;
+    }
+    .stage-info { flex: 1; }
+    .stage-title { font-weight: 700; font-size: 1rem; margin-bottom: 2px; }
+    .stage-desc { font-size: 0.78rem; color: #888; }
+    .progress-bar { height: 4px; background: #333; border-radius: 2px; overflow: hidden; margin-top: 4px; }
+    .progress-fill { height: 100%; background: var(--gold); border-radius: 2px; }
+    .stage-stars { font-size: 0.75rem; color: var(--gold); margin-top: 2px; }
+
+    .problem-header {
+      width: 100%; display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 0; margin-bottom: 8px;
+    }
+    .problem-counter { font-size: 0.9rem; color: #888; font-weight: 700; }
+
+    /* 모드 전환 */
+    .mode-toggle {
+      display: flex; gap: 4px; background: var(--card); border-radius: 10px; padding: 3px; margin: 8px 0;
+    }
+    .mode-btn {
+      padding: 8px 18px; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 700;
+      cursor: pointer; background: transparent; color: #888; transition: all 0.2s;
+    }
+    .mode-btn.active { background: var(--purple); color: #fff; }
+
+    /* 듣기 버튼 */
+    .listen-btn {
+      width: 100px; height: 100px; border-radius: 50%; border: none;
+      background: var(--purple); color: #fff; font-size: 2.5rem;
+      cursor: pointer; margin: 12px 0; transition: transform 0.15s;
+      box-shadow: 0 4px 15px rgba(108,92,231,0.4);
+    }
+    .listen-btn:active { transform: scale(0.9); }
+    .listen-btn.playing { animation: pulse 0.8s infinite; }
+    @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+
+    .listen-hint { font-size: 0.9rem; color: #888; margin: 4px 0; }
+
+    /* 타이핑 모드 */
+    .typing-input {
+      width: 100%; max-width: 320px; padding: 16px; margin: 12px 0;
+      border: 3px solid #444; border-radius: 14px; font-size: 1.5rem;
+      font-weight: 700; text-align: center; background: var(--card);
+      color: var(--text); outline: none;
+    }
+    .typing-input:focus { border-color: var(--purple); }
+
+    /* 그리기 모드 */
+    .canvas-area {
+      width: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 12px 0;
+    }
+    .canvas-row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+    .char-canvas-wrap {
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+    }
+    .char-canvas {
+      border: 2px solid #444; border-radius: 10px; background: #0d1b2a;
+      touch-action: none;
+    }
+    .char-canvas.active { border-color: var(--purple); }
+    .char-label { font-size: 0.7rem; color: #666; }
+    .canvas-tools {
+      display: flex; gap: 8px; margin-top: 4px;
+    }
+    .canvas-tool-btn {
+      padding: 6px 16px; border: 1px solid #555; border-radius: 8px;
+      background: var(--card); color: #aaa; font-size: 0.85rem; cursor: pointer;
+    }
+
+    /* 결과 표시 */
+    .result-display {
+      width: 100%; max-width: 360px; padding: 16px;
+      background: rgba(108,92,231,0.1); border-radius: 14px; margin: 8px 0;
+      text-align: center;
+    }
+    .result-char { display: inline-block; font-size: 1.8rem; font-weight: 900; margin: 0 2px; padding: 4px 8px; border-radius: 6px; }
+    .result-char.correct { color: var(--green); }
+    .result-char.wrong { color: var(--accent); text-decoration: underline; }
+
+    .submit-btn {
+      padding: 14px 48px; background: var(--green); color: #000;
+      font-weight: 800; font-size: 1.1rem; border: none; border-radius: 14px;
+      cursor: pointer; margin: 8px 0;
+    }
+    .next-btn {
+      padding: 14px 40px; background: var(--green); color: #000;
+      font-weight: 800; font-size: 1.1rem; border: none; border-radius: 14px;
+      cursor: pointer; margin: 8px 0;
+    }
+    .step-hint { font-size: 0.9rem; color: var(--orange); margin: 6px 0; text-align: center; }
+
+    .feedback-overlay {
+      position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
+      pointer-events: none; animation: feedbackPop 0.8s forwards;
+    }
+    .feedback-msg {
+      font-size: 1.8rem; font-weight: 900; padding: 20px 40px; border-radius: 20px;
+      animation: feedbackScale 0.5s ease;
+    }
+    .feedback-correct { background: rgba(78,204,163,0.95); color: #000; }
+    .feedback-wrong { background: rgba(233,69,96,0.95); color: #fff; }
+    @keyframes feedbackPop { 0%{opacity:1}70%{opacity:1}100%{opacity:0} }
+    @keyframes feedbackScale { 0%{transform:scale(0.5)}50%{transform:scale(1.1)}100%{transform:scale(1)} }
+
+    .complete-emoji { font-size: 4rem; margin: 16px 0; }
+    .complete-title { font-size: 1.6rem; font-weight: 900; color: var(--gold); }
+    .complete-subtitle { font-size: 1.1rem; color: #ccc; margin: 8px 0 16px; }
+    .complete-stars { font-size: 2rem; margin: 8px 0; }
+    .complete-btn { padding: 14px 36px; border: none; border-radius: 14px; font-size: 1.1rem; font-weight: 800; cursor: pointer; margin: 6px; }
+    .complete-btn.primary { background: var(--green); color: #000; }
+    .complete-btn.secondary { background: var(--card); color: var(--text); border: 1px solid #555; }
+
+    .toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: var(--accent); color: #fff; padding: 12px 24px; border-radius: 12px;
+      font-weight: 600; z-index: 200; animation: toastIn 0.3s, toastOut 0.3s 2s forwards;
+    }
+    @keyframes toastIn { from { opacity:0; transform:translateX(-50%) translateY(20px); } }
+    @keyframes toastOut { to { opacity:0; transform:translateX(-50%) translateY(20px); } }
+  </style>
+</head>
+<body>
+  <!-- 단계 선택 -->
+  <div id="screen-stages" class="screen active">
+    <h1>✏️ 받아쓰기</h1>
+    <p class="sub-text">소리를 듣고 따라 써봐요!</p>
+    <div class="stage-list" id="stage-list"></div>
+    <a href="/" class="back-btn" style="margin-top:8px;">🏠 홈으로</a>
+  </div>
+
+  <!-- 문제 풀이 -->
+  <div id="screen-problem" class="screen">
+    <div class="problem-header">
+      <button class="back-btn" onclick="backToStages()" style="margin:0;padding:6px 14px;">← 목록</button>
+      <span class="problem-counter" id="problem-counter">1 / 10</span>
+      <span id="problem-stars" style="font-size:1rem;">⭐ 0</span>
+    </div>
+
+    <!-- 모드 전환 -->
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="mode-draw" onclick="setMode('draw')">✏️ 그리기</button>
+      <button class="mode-btn" id="mode-type" onclick="setMode('type')">⌨️ 타이핑</button>
+    </div>
+
+    <!-- 듣기 버튼 -->
+    <button class="listen-btn" id="btn-listen" onclick="playWord()">🔊</button>
+    <p class="listen-hint">버튼을 눌러 들어보세요</p>
+
+    <!-- 그리기 모드 -->
+    <div class="canvas-area" id="draw-area">
+      <div class="canvas-row" id="canvas-row"></div>
+      <div class="canvas-tools">
+        <button class="canvas-tool-btn" onclick="clearCurrentCanvas()">현재 칸 지우기</button>
+        <button class="canvas-tool-btn" onclick="clearAllCanvas()">전체 지우기</button>
+      </div>
+    </div>
+
+    <!-- 타이핑 모드 -->
+    <div id="type-area" style="display:none; width:100%; display:none; flex-direction:column; align-items:center;">
+      <input type="text" class="typing-input" id="typing-input" placeholder="여기에 입력하세요" autocomplete="off" autocapitalize="off" spellcheck="false">
+    </div>
+
+    <!-- 결과 -->
+    <div class="result-display" id="result-display" style="display:none"></div>
+    <div id="hint-area" style="display:none" class="step-hint"></div>
+
+    <button class="submit-btn" id="btn-submit" onclick="submitAnswer()">확인!</button>
+    <button class="next-btn" id="btn-next" style="display:none" onclick="nextProblem()">다음 문제 →</button>
+  </div>
+
+  <!-- 완료 -->
+  <div id="screen-complete" class="screen">
+    <div class="complete-emoji" id="complete-emoji">🏆</div>
+    <div class="complete-title" id="complete-title">단계 클리어!</div>
+    <div class="complete-subtitle" id="complete-subtitle"></div>
+    <div class="complete-stars" id="complete-stars"></div>
+    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:12px;">
+      <button class="complete-btn secondary" onclick="backToStages()">목록으로</button>
+      <button class="complete-btn secondary" onclick="retryStage()">다시 하기</button>
+      <button class="complete-btn primary" id="btn-next-stage" onclick="goNextStage()">다음 단계 →</button>
+    </div>
+  </div>
+
+  <script>
+    // ── 단어 세트 ──
+    const WORDS = {
+      1: ['나무','바다','우유','가구','아기','오이','여우','토끼','머리','허리',
+          '나라','다리','고기','소리','무지개','기차','피아노','포도','모자','구두',
+          '이야기','하마','코끼리','기러기','두부','수박','호수','부채','오리','자리'],
+      2: ['사람','학교','공원','선생','동물','식물','마을','구름','바람','가을',
+          '겨울','봄날','산길','강물','문학','연필','책상','의원','건물','편지',
+          '놀이터','친구','방학','운동','음악','색연필','지우개','가방','옷장','창문'],
+      3: ['의자','닭','값','없다','읽다','맑다','젊다','넓다','외국','쉬다',
+          '얘기','왜','돼지','뒤','쥐','궤도','훼손','원래','의사','회의',
+          '예쁘다','쓰다','빛','꽃','숲','밭','흙','잎','삶','넋'],
+      4: ['나는 학교에 갑니다','오늘 날씨가 좋습니다','엄마가 밥을 합니다',
+          '아빠와 공원에 갔다','친구와 놀이터에서 놀았다','우리 집에 고양이가 있다',
+          '비가 와서 우산을 썼다','동생이 책을 읽는다','선생님이 이야기를 했다',
+          '꽃이 예쁘게 피었다','나무 위에 새가 있다','물을 마시고 싶다',
+          '내일은 일요일이다','가을에 단풍이 들었다','겨울에 눈이 온다'],
+    };
+
+    const STAGES = [
+      { id: 1, title: '기본 낱말', desc: '받침 없는 쉬운 단어', icon: '📝', color: '#4ecca3' },
+      { id: 2, title: '받침 있는 낱말', desc: '받침이 있는 단어', icon: '✍️', color: '#f5c518' },
+      { id: 3, title: '어려운 낱말', desc: '이중모음, 겹받침', icon: '📖', color: '#6c5ce7' },
+      { id: 4, title: '짧은 문장', desc: '문장 받아쓰기', icon: '📄', color: '#e94560' },
+    ];
+
+    const PROBLEMS_PER_SET = 10;
+    const UNLOCK_THRESHOLD = 7;
+    const ENCOURAGE = ['잘했어요! 👏','대단해요! ⭐','멋져요! 🎉','정답이에요! 😊','최고예요! 🧠','완벽해요! 💯'];
+    const ENCOURAGE_WRONG = ['괜찮아요, 다시 해봐요! 😊','조금만 더 생각해봐요! 🤔','천천히 해도 괜찮아요 💪'];
+
+    let currentStageId = 0, currentProblemIdx = 0, currentWord = '';
+    let attempts = 0, problemStars = 3, sessionStars = 0, sessionCompleted = 0;
+    let inputMode = 'draw'; // 'draw' | 'type'
+    let canvases = [];
+    let activeCanvasIdx = 0;
+    let drawingData = []; // stroke data per canvas
+    let progress = loadProgress();
+
+    function randInt(a,b) { return Math.floor(Math.random()*(b-a+1))+a; }
+    function pick(arr) { return arr[Math.floor(Math.random()*arr.length)]; }
+    function shuffle(arr) { for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    // ── 효과음 ──
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+    function getAudioCtx() { if(!audioCtx) audioCtx=new AudioCtx(); if(audioCtx.state==='suspended') audioCtx.resume(); return audioCtx; }
+    function playCorrectSound() { const ctx=getAudioCtx(),t=ctx.currentTime; [523,659,784].forEach((f,i)=>{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='sine';o.frequency.setValueAtTime(f,t+i*0.1);g.gain.setValueAtTime(0.25,t+i*0.1);g.gain.exponentialRampToValueAtTime(0.01,t+i*0.1+0.25);o.start(t+i*0.1);o.stop(t+i*0.1+0.25);}); }
+    function playWrongSound() { const ctx=getAudioCtx(),t=ctx.currentTime; const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='square';o.frequency.setValueAtTime(200,t);g.gain.setValueAtTime(0.12,t);g.gain.exponentialRampToValueAtTime(0.01,t+0.25);o.start(t);o.stop(t+0.25); }
+    function playClearSound() { const ctx=getAudioCtx(),t=ctx.currentTime; [[523,659,784],[587,740,880],[523,659,784,1047]].forEach((chord,ci)=>{chord.forEach(f=>{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='sine';o.frequency.setValueAtTime(f,t+ci*0.3);g.gain.setValueAtTime(0.12,t+ci*0.3);g.gain.exponentialRampToValueAtTime(0.01,t+ci*0.3+0.5);o.start(t+ci*0.3);o.stop(t+ci*0.3+0.5);});}); }
+
+    // ── TTS ──
+    function speakWord(text) {
+      if (!('speechSynthesis' in window)) return;
+      speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'ko-KR';
+      utter.rate = 0.8;
+      const btn = document.getElementById('btn-listen');
+      btn.classList.add('playing');
+      utter.onend = () => btn.classList.remove('playing');
+      utter.onerror = () => btn.classList.remove('playing');
+      speechSynthesis.speak(utter);
+    }
+
+    function playWord() {
+      getAudioCtx();
+      speakWord(currentWord);
+    }
+
+    // ── 진행도 ──
+    function loadProgress() {
+      try { const d=JSON.parse(localStorage.getItem('dictation-progress')); if(d&&d.stages) return d; } catch(e){}
+      return { stages: { 1:{completed:0,stars:0,unlocked:true}, 2:{completed:0,stars:0,unlocked:true}, 3:{completed:0,stars:0,unlocked:false}, 4:{completed:0,stars:0,unlocked:false} } };
+    }
+    function saveProgress() { localStorage.setItem('dictation-progress', JSON.stringify(progress)); }
+    function checkUnlocks() { for(let i=2;i<=4;i++){if(progress.stages[i-1].completed>=UNLOCK_THRESHOLD) progress.stages[i].unlocked=true;} saveProgress(); }
+
+    // ── 모드 전환 ──
+    function setMode(mode) {
+      inputMode = mode;
+      document.getElementById('mode-draw').classList.toggle('active', mode === 'draw');
+      document.getElementById('mode-type').classList.toggle('active', mode === 'type');
+      document.getElementById('draw-area').style.display = mode === 'draw' ? 'flex' : 'none';
+      const typeArea = document.getElementById('type-area');
+      typeArea.style.display = mode === 'type' ? 'flex' : 'none';
+    }
+
+    // ── 캔버스 관리 ──
+    function setupCanvases(word) {
+      const chars = currentStageId === 4 ? word.split('') : word.split('');
+      const row = document.getElementById('canvas-row');
+      row.innerHTML = '';
+      canvases = [];
+      drawingData = [];
+      activeCanvasIdx = 0;
+
+      const size = currentStageId === 4 ? 52 : 72;
+
+      chars.forEach((ch, i) => {
+        if (ch === ' ') {
+          const spacer = document.createElement('div');
+          spacer.style.width = '20px';
+          row.appendChild(spacer);
+          canvases.push(null);
+          drawingData.push(null);
+          return;
+        }
+        const wrap = document.createElement('div');
+        wrap.className = 'char-canvas-wrap';
+
+        const canvas = document.createElement('canvas');
+        canvas.className = 'char-canvas' + (i === 0 ? ' active' : '');
+        canvas.width = size; canvas.height = size;
+        canvas.dataset.idx = i;
+
+        canvas.addEventListener('pointerdown', (e) => { e.preventDefault(); startDraw(canvas, e); setActiveCanvas(i); });
+        canvas.addEventListener('pointermove', (e) => { e.preventDefault(); moveDraw(canvas, e); });
+        canvas.addEventListener('pointerup', (e) => { e.preventDefault(); endDraw(canvas); });
+
+        const label = document.createElement('div');
+        label.className = 'char-label';
+        label.textContent = (i + 1);
+
+        wrap.appendChild(canvas);
+        wrap.appendChild(label);
+        row.appendChild(wrap);
+        canvases.push(canvas);
+        drawingData.push({ strokes: [], currentStroke: null });
+      });
+    }
+
+    function setActiveCanvas(idx) {
+      if (canvases[idx] === null) return;
+      activeCanvasIdx = idx;
+      canvases.forEach((c, i) => { if (c) c.classList.toggle('active', i === idx); });
+    }
+
+    let isDrawing = false;
+    function startDraw(canvas, e) {
+      isDrawing = true;
+      const idx = parseInt(canvas.dataset.idx);
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      drawingData[idx].currentStroke = { x: [x], y: [y] };
+      const ctx = canvas.getContext('2d');
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+    }
+
+    function moveDraw(canvas, e) {
+      if (!isDrawing) return;
+      const idx = parseInt(canvas.dataset.idx);
+      const data = drawingData[idx];
+      if (!data || !data.currentStroke) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      data.currentStroke.x.push(x);
+      data.currentStroke.y.push(y);
+      const ctx = canvas.getContext('2d');
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    }
+
+    function endDraw(canvas) {
+      if (!isDrawing) return;
+      isDrawing = false;
+      const idx = parseInt(canvas.dataset.idx);
+      const data = drawingData[idx];
+      if (!data || !data.currentStroke) return;
+      data.strokes.push(data.currentStroke);
+      data.currentStroke = null;
+    }
+
+    function clearCurrentCanvas() {
+      const canvas = canvases[activeCanvasIdx];
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawingData[activeCanvasIdx] = { strokes: [], currentStroke: null };
+    }
+
+    function clearAllCanvas() {
+      canvases.forEach((canvas, i) => {
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawingData[i] = { strokes: [], currentStroke: null };
+      });
+    }
+
+    // ── Google Handwriting API ──
+    async function recognizeChar(idx) {
+      const data = drawingData[idx];
+      if (!data || data.strokes.length === 0) return '';
+
+      const canvas = canvases[idx];
+      const w = canvas.width, h = canvas.height;
+      const ink = data.strokes.map(s => [s.x, s.y, []]);
+
+      try {
+        const body = JSON.stringify({
+          input_type: 0,
+          requests: [{
+            writing_guide: { writing_area_width: w, writing_area_height: h },
+            ink: ink,
+            language: 'ko',
+          }]
+        });
+
+        const res = await fetch('https://inputtools.google.com/request?itc=ko-t-i0-handwrit&app=translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: body,
+        });
+        const json = await res.json();
+        if (json[0] === 'SUCCESS' && json[1] && json[1][0] && json[1][0][1]) {
+          return json[1][0][1][0] || '';
+        }
+      } catch (e) {
+        console.error('Handwriting API error:', e);
+      }
+      return '';
+    }
+
+    // ── 단계 선택 ──
+    function renderStageSelect() {
+      checkUnlocks();
+      const list = document.getElementById('stage-list');
+      list.innerHTML = '';
+      STAGES.forEach(s => {
+        const p = progress.stages[s.id];
+        const pct = Math.min(100, Math.round((p.completed/PROBLEMS_PER_SET)*100));
+        const locked = !p.unlocked;
+        const card = document.createElement('div');
+        card.className = 'stage-card' + (locked ? ' locked' : '');
+        card.innerHTML = `
+          <div class="stage-num" style="background:${s.color}20;color:${s.color};">${s.icon}</div>
+          <div class="stage-info">
+            <div class="stage-title">${s.title}</div>
+            <div class="stage-desc">${s.desc}</div>
+            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+            <div class="stage-stars">${p.stars>0?'⭐ '+p.stars:''} ${p.completed>0?p.completed+'/'+PROBLEMS_PER_SET+' 완료':''}</div>
+          </div>
+          ${locked?'<span style="color:#555;font-size:1.2rem;">🔒</span>':'<span style="color:#555;font-size:1.2rem;">→</span>'}`;
+        if (!locked) card.onclick = () => startStage(s.id);
+        list.appendChild(card);
+      });
+    }
+
+    // ── 게임 플로우 ──
+    let wordPool = [];
+
+    function startStage(stageId) {
+      getAudioCtx();
+      currentStageId = stageId;
+      currentProblemIdx = 0;
+      sessionStars = 0; sessionCompleted = 0;
+      wordPool = shuffle([...WORDS[stageId]]);
+      showScreen('screen-problem');
+      setMode(inputMode);
+      loadProblem();
+    }
+
+    function loadProblem() {
+      if (wordPool.length === 0) wordPool = shuffle([...WORDS[currentStageId]]);
+      currentWord = wordPool.pop();
+      attempts = 0; problemStars = 3;
+
+      document.getElementById('problem-counter').textContent = `${currentProblemIdx+1} / ${PROBLEMS_PER_SET}`;
+      document.getElementById('problem-stars').textContent = '⭐ ' + sessionStars;
+      document.getElementById('result-display').style.display = 'none';
+      document.getElementById('hint-area').style.display = 'none';
+      document.getElementById('btn-submit').style.display = '';
+      document.getElementById('btn-next').style.display = 'none';
+
+      if (inputMode === 'draw') {
+        setupCanvases(currentWord);
+      } else {
+        document.getElementById('typing-input').value = '';
+        document.getElementById('typing-input').focus();
+      }
+
+      // 자동 읽어주기
+      setTimeout(() => speakWord(currentWord), 300);
+    }
+
+    async function submitAnswer() {
+      getAudioCtx();
+      let userAnswer = '';
+
+      if (inputMode === 'type') {
+        userAnswer = document.getElementById('typing-input').value.trim();
+      } else {
+        // 그리기 모드: 각 캔버스 인식
+        const chars = [];
+        for (let i = 0; i < canvases.length; i++) {
+          if (canvases[i] === null) {
+            chars.push(' ');
+            continue;
+          }
+          if (drawingData[i].strokes.length === 0) {
+            chars.push('');
+            continue;
+          }
+          const recognized = await recognizeChar(i);
+          chars.push(recognized);
+        }
+        userAnswer = chars.join('');
+      }
+
+      if (!userAnswer) {
+        showFeedback(false, '답을 입력해주세요!');
+        return;
+      }
+
+      // 채점
+      const correct = userAnswer === currentWord;
+      const resultEl = document.getElementById('result-display');
+      resultEl.style.display = 'block';
+
+      if (correct) {
+        playCorrectSound();
+        sessionStars += problemStars;
+        sessionCompleted++;
+        currentProblemIdx++;
+
+        showFeedback(true, pick(ENCOURAGE));
+        resultEl.innerHTML = `<div style="font-size:1.4rem;font-weight:700;color:var(--green);margin-bottom:8px;">${pick(ENCOURAGE)}</div>` +
+          currentWord.split('').map(c => `<span class="result-char correct">${c}</span>`).join('') +
+          (problemStars > 0 ? '<br>⭐'.repeat(problemStars) : '');
+
+        document.getElementById('problem-stars').textContent = '⭐ ' + sessionStars;
+        document.getElementById('btn-submit').style.display = 'none';
+        if (currentProblemIdx >= PROBLEMS_PER_SET) {
+          setTimeout(() => completeStage(), 1000);
+        } else {
+          document.getElementById('btn-next').style.display = '';
+        }
+      } else {
+        attempts++;
+        playWrongSound();
+        // 글자별 비교
+        const target = currentWord;
+        let html = '';
+        const maxLen = Math.max(target.length, userAnswer.length);
+        for (let i = 0; i < maxLen; i++) {
+          const tc = target[i] || '';
+          const uc = userAnswer[i] || '';
+          if (tc === uc) {
+            html += `<span class="result-char correct">${uc}</span>`;
+          } else {
+            html += `<span class="result-char wrong">${uc || '_'}</span>`;
+          }
+        }
+        resultEl.innerHTML = `<div style="font-size:0.9rem;color:#888;margin-bottom:8px;">내가 쓴 것:</div>` + html;
+        showFeedback(false, pick(ENCOURAGE_WRONG));
+
+        if (attempts === 1) problemStars = Math.min(problemStars, 2);
+        if (attempts >= 2) {
+          problemStars = Math.min(problemStars, 1);
+          const hint = document.getElementById('hint-area');
+          hint.style.display = 'block';
+          hint.textContent = `💡 다시 들어보고 천천히 써보세요!`;
+        }
+        if (attempts >= 3) {
+          problemStars = 0;
+          const hint = document.getElementById('hint-area');
+          hint.textContent = `정답: ${currentWord}`;
+          hint.style.display = 'block';
+          document.getElementById('btn-submit').style.display = 'none';
+          sessionCompleted++;
+          currentProblemIdx++;
+          if (currentProblemIdx >= PROBLEMS_PER_SET) {
+            setTimeout(() => completeStage(), 1500);
+          } else {
+            document.getElementById('btn-next').style.display = '';
+          }
+        }
+      }
+    }
+
+    function nextProblem() {
+      document.getElementById('btn-next').style.display = 'none';
+      loadProblem();
+    }
+
+    function completeStage() {
+      const p = progress.stages[currentStageId];
+      p.completed = Math.max(p.completed, sessionCompleted);
+      p.stars = Math.max(p.stars, sessionStars);
+      checkUnlocks(); saveProgress();
+      playClearSound();
+      showScreen('screen-complete');
+      document.getElementById('complete-emoji').textContent = pick(['🏆','🎉','🥳','⭐','👑']);
+      document.getElementById('complete-title').textContent = `${STAGES[currentStageId-1].title} 클리어!`;
+      document.getElementById('complete-subtitle').textContent = `${sessionCompleted}문제 완료!`;
+      document.getElementById('complete-stars').textContent = '⭐ ' + sessionStars + '개 획득!';
+      const nextBtn = document.getElementById('btn-next-stage');
+      nextBtn.style.display = (currentStageId<4 && progress.stages[currentStageId+1] && progress.stages[currentStageId+1].unlocked) ? 'inline-block' : 'none';
+    }
+
+    function backToStages() { showScreen('screen-stages'); renderStageSelect(); }
+    function retryStage() { startStage(currentStageId); }
+    function goNextStage() { if (currentStageId < 4) startStage(currentStageId + 1); }
+
+    function showFeedback(correct, msg) {
+      const overlay = document.createElement('div');
+      overlay.className = 'feedback-overlay';
+      const m = document.createElement('div');
+      m.className = 'feedback-msg ' + (correct ? 'feedback-correct' : 'feedback-wrong');
+      m.textContent = msg;
+      overlay.appendChild(m);
+      document.body.appendChild(overlay);
+      setTimeout(() => overlay.remove(), 800);
+    }
+
+    // 타이핑 엔터키
+    document.getElementById('typing-input').addEventListener('keydown', e => { if (e.key === 'Enter') submitAnswer(); });
+
+    renderStageSelect();
+  </script>
+</body>
+</html>
