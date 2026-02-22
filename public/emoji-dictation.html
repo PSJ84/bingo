@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>이모지 받아쓰기</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/icons/icon-192.svg">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #1a1a2e; --card: #16213e; --accent: #e94560; --accent2: #0f3460;
+      --gold: #f5c518; --text: #eee; --green: #4ecca3; --orange: #ff9f43; --purple: #6c5ce7;
+    }
+    body {
+      font-family: 'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100dvh; display: flex; flex-direction: column; align-items: center;
+    }
+    h1 { font-size: 1.8rem; margin: 16px 0 8px; text-align: center; }
+    .sub-text { color: #888; font-size: 0.85rem; margin: 4px 0; text-align: center; }
+    .screen { display: none; width: 100%; max-width: 500px; padding: 16px; }
+    .screen.active { display: flex; flex-direction: column; align-items: center; }
+
+    .back-btn {
+      background: none; border: 1px solid #555; color: #aaa;
+      padding: 8px 20px; border-radius: 8px; cursor: pointer; font-size: 0.9rem;
+      margin: 8px 0; text-decoration: none; display: inline-block; text-align: center;
+    }
+
+    /* 난이도 선택 */
+    .diff-list { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
+    .diff-card {
+      display: flex; align-items: center; gap: 14px; padding: 18px 20px;
+      background: var(--card); border-radius: 16px; cursor: pointer;
+      border: 2px solid #333; transition: all 0.15s;
+    }
+    .diff-card:hover { transform: scale(1.02); }
+    .diff-card:active { transform: scale(0.97); }
+    .diff-icon {
+      width: 50px; height: 50px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; font-weight: 900; flex-shrink: 0;
+    }
+    .diff-info { flex: 1; }
+    .diff-title { font-weight: 700; font-size: 1.1rem; margin-bottom: 2px; }
+    .diff-desc { font-size: 0.8rem; color: #888; }
+    .diff-arrow { color: #555; font-size: 1.2rem; }
+
+    /* 게임 화면 */
+    .game-header {
+      width: 100%; display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 0; margin-bottom: 8px;
+    }
+    .game-counter { font-size: 0.9rem; color: #888; font-weight: 700; }
+    .game-score { font-size: 1rem; color: var(--gold); font-weight: 700; }
+
+    .emoji-display {
+      font-size: 7rem; margin: 20px 0; padding: 24px;
+      background: rgba(108,92,231,0.08); border-radius: 30px;
+      animation: emojiPop 0.4s ease;
+    }
+    @keyframes emojiPop { 0%{transform:scale(0.5);opacity:0} 60%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }
+
+    .hint-text {
+      font-size: 1rem; color: var(--orange); font-weight: 700; margin: 8px 0;
+      min-height: 24px; text-align: center;
+    }
+
+    .answer-input {
+      width: 100%; max-width: 300px; padding: 16px; margin: 12px 0;
+      border: 3px solid #444; border-radius: 14px; font-size: 1.6rem;
+      font-weight: 700; text-align: center; background: var(--card);
+      color: var(--text); outline: none;
+    }
+    .answer-input:focus { border-color: var(--purple); }
+    .answer-input.correct { border-color: var(--green); background: rgba(78,204,163,0.1); }
+    .answer-input.wrong { border-color: var(--accent); background: rgba(233,69,96,0.1); }
+
+    .submit-btn {
+      padding: 14px 60px; background: var(--green); color: #000;
+      font-weight: 800; font-size: 1.2rem; border: none; border-radius: 14px;
+      cursor: pointer; margin: 8px 0; transition: transform 0.15s;
+    }
+    .submit-btn:active { transform: scale(0.95); }
+    .submit-btn:disabled { opacity: 0.4; cursor: default; }
+
+    .next-btn {
+      padding: 14px 48px; background: var(--purple); color: #fff;
+      font-weight: 800; font-size: 1.1rem; border: none; border-radius: 14px;
+      cursor: pointer; margin: 8px 0; transition: transform 0.15s;
+    }
+    .next-btn:active { transform: scale(0.95); }
+
+    .correct-answer {
+      font-size: 1.4rem; font-weight: 900; color: var(--green);
+      margin: 8px 0; padding: 12px 24px;
+      background: rgba(78,204,163,0.1); border-radius: 12px;
+    }
+
+    /* 결과 화면 */
+    .result-emoji { font-size: 4rem; margin: 16px 0; }
+    .result-title { font-size: 1.8rem; font-weight: 900; color: var(--gold); }
+    .result-detail { font-size: 1.2rem; color: #ccc; margin: 12px 0; }
+    .result-stars { font-size: 2rem; margin: 8px 0; }
+
+    .result-list { width: 100%; max-width: 360px; margin: 16px 0; }
+    .result-item {
+      display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+      background: var(--card); border-radius: 12px; margin-bottom: 6px;
+    }
+    .result-item .ri-emoji { font-size: 1.6rem; }
+    .result-item .ri-word { flex: 1; font-weight: 700; font-size: 1rem; }
+    .result-item .ri-mark { font-size: 1.2rem; }
+
+    .result-btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 16px; }
+    .result-btn {
+      padding: 14px 28px; border: none; border-radius: 14px; font-size: 1rem;
+      font-weight: 800; cursor: pointer;
+    }
+    .result-btn.primary { background: var(--green); color: #000; }
+    .result-btn.secondary { background: var(--card); color: var(--text); border: 1px solid #555; }
+
+    /* 피드백 오버레이 */
+    .feedback-overlay {
+      position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
+      pointer-events: none; animation: feedbackPop 0.8s forwards;
+    }
+    .feedback-msg {
+      font-size: 1.6rem; font-weight: 900; padding: 20px 40px; border-radius: 20px;
+      animation: feedbackScale 0.5s ease;
+    }
+    .feedback-correct { background: rgba(78,204,163,0.95); color: #000; }
+    .feedback-wrong { background: rgba(233,69,96,0.95); color: #fff; }
+    @keyframes feedbackPop { 0%{opacity:1}70%{opacity:1}100%{opacity:0} }
+    @keyframes feedbackScale { 0%{transform:scale(0.5)}50%{transform:scale(1.1)}100%{transform:scale(1)} }
+
+    .toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: var(--accent); color: #fff; padding: 12px 24px; border-radius: 12px;
+      font-weight: 600; z-index: 200; animation: toastIn 0.3s, toastOut 0.3s 2s forwards;
+    }
+    @keyframes toastIn { from { opacity:0; transform:translateX(-50%) translateY(20px); } }
+    @keyframes toastOut { to { opacity:0; transform:translateX(-50%) translateY(20px); } }
+
+    @keyframes confettiFall {
+      0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 난이도 선택 -->
+  <div id="screen-select" class="screen active">
+    <h1>🖼️ 이모지 받아쓰기</h1>
+    <p class="sub-text">그림을 보고 이름을 맞춰보세요!</p>
+
+    <div class="diff-list">
+      <div class="diff-card" onclick="startGame('easy')" style="border-color:#4ecca3;">
+        <div class="diff-icon" style="background:rgba(78,204,163,0.15);color:#4ecca3;">🌱</div>
+        <div class="diff-info">
+          <div class="diff-title">쉬움</div>
+          <div class="diff-desc">2글자 단어 (사과, 포도, 우산...)</div>
+        </div>
+        <span class="diff-arrow">→</span>
+      </div>
+
+      <div class="diff-card" onclick="startGame('normal')" style="border-color:#f5c518;">
+        <div class="diff-icon" style="background:rgba(245,197,24,0.15);color:#f5c518;">⭐</div>
+        <div class="diff-info">
+          <div class="diff-title">중간</div>
+          <div class="diff-desc">3글자 단어 (강아지, 비행기...)</div>
+        </div>
+        <span class="diff-arrow">→</span>
+      </div>
+
+      <div class="diff-card" onclick="startGame('hard')" style="border-color:#e94560;">
+        <div class="diff-icon" style="background:rgba(233,69,96,0.15);color:#e94560;">🔥</div>
+        <div class="diff-info">
+          <div class="diff-title">어려움</div>
+          <div class="diff-desc">4글자 이상 (해바라기, 텔레비전...)</div>
+        </div>
+        <span class="diff-arrow">→</span>
+      </div>
+
+      <div class="diff-card" onclick="startGame('random')" style="border-color:#6c5ce7;">
+        <div class="diff-icon" style="background:rgba(108,92,231,0.15);color:#6c5ce7;">🎲</div>
+        <div class="diff-info">
+          <div class="diff-title">랜덤</div>
+          <div class="diff-desc">모든 난이도 섞어서!</div>
+        </div>
+        <span class="diff-arrow">→</span>
+      </div>
+    </div>
+
+    <a href="/" class="back-btn">🏠 홈으로</a>
+  </div>
+
+  <!-- 게임 화면 -->
+  <div id="screen-game" class="screen">
+    <div class="game-header">
+      <button class="back-btn" onclick="backToSelect()" style="margin:0;padding:6px 14px;">← 목록</button>
+      <span class="game-counter" id="game-counter">1 / 10</span>
+      <span class="game-score" id="game-score">⭐ 0</span>
+    </div>
+
+    <div class="emoji-display" id="emoji-display">🍎</div>
+
+    <div class="hint-text" id="hint-text"></div>
+
+    <input type="text" class="answer-input" id="answer-input" placeholder="여기에 입력하세요"
+           autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="10">
+
+    <button class="submit-btn" id="btn-submit" onclick="submitAnswer()">확인!</button>
+    <button class="next-btn" id="btn-next" style="display:none" onclick="nextProblem()">다음 문제 →</button>
+  </div>
+
+  <!-- 결과 화면 -->
+  <div id="screen-result" class="screen">
+    <div class="result-emoji" id="result-emoji">🏆</div>
+    <div class="result-title" id="result-title">잘했어요!</div>
+    <div class="result-detail" id="result-detail">10 / 10 정답!</div>
+    <div class="result-stars" id="result-stars">⭐⭐⭐</div>
+
+    <div class="result-list" id="result-list"></div>
+
+    <div class="result-btns">
+      <button class="result-btn secondary" onclick="backToSelect()">난이도 선택</button>
+      <button class="result-btn primary" onclick="retryGame()">다시 하기 🔄</button>
+    </div>
+    <a href="/" class="back-btn" style="margin-top:12px;">🏠 홈으로</a>
+  </div>
+
+  <script>
+    // ── 단어 데이터 ──
+    const WORDS = {
+      easy: [
+        {emoji:'🍎',word:'사과'},{emoji:'🍇',word:'포도'},{emoji:'🌂',word:'우산'},
+        {emoji:'⚽',word:'축구'},{emoji:'☁️',word:'구름'},{emoji:'🌊',word:'바다'},
+        {emoji:'🍕',word:'피자'},{emoji:'🍉',word:'수박'},{emoji:'🍋',word:'레몬'},
+        {emoji:'🍓',word:'딸기'},{emoji:'🥕',word:'당근'},{emoji:'🚌',word:'버스'},
+        {emoji:'🎈',word:'풍선'},{emoji:'🦁',word:'사자'},{emoji:'🦋',word:'나비'},
+        {emoji:'👟',word:'신발'},{emoji:'🧢',word:'모자'},{emoji:'🎒',word:'가방'},
+        {emoji:'✏️',word:'연필'},{emoji:'🥛',word:'우유'},{emoji:'☀️',word:'태양'},
+        {emoji:'🚂',word:'기차'},{emoji:'🐳',word:'고래'},{emoji:'🐧',word:'펭귄'},
+        {emoji:'🦒',word:'기린'},{emoji:'🐊',word:'악어'},{emoji:'🐙',word:'문어'},
+        {emoji:'🎁',word:'선물'},{emoji:'🧀',word:'치즈'},{emoji:'🎵',word:'노래'},
+      ],
+      normal: [
+        {emoji:'🐕',word:'강아지'},{emoji:'🐱',word:'고양이'},{emoji:'🐘',word:'코끼리'},
+        {emoji:'🐸',word:'개구리'},{emoji:'🐢',word:'거북이'},{emoji:'🍌',word:'바나나'},
+        {emoji:'🍊',word:'오렌지'},{emoji:'🍔',word:'햄버거'},{emoji:'🌈',word:'무지개'},
+        {emoji:'✈️',word:'비행기'},{emoji:'🚗',word:'자동차'},{emoji:'🚲',word:'자전거'},
+        {emoji:'🎹',word:'피아노'},{emoji:'🎂',word:'케이크'},{emoji:'📷',word:'카메라'},
+        {emoji:'🐟',word:'물고기'},{emoji:'🌽',word:'옥수수'},{emoji:'🐬',word:'돌고래'},
+        {emoji:'🖥️',word:'컴퓨터'},{emoji:'🦜',word:'앵무새'},{emoji:'🚀',word:'우주선'},
+        {emoji:'🍩',word:'도너츠'},{emoji:'🏫',word:'유치원'},{emoji:'🎡',word:'관람차'},
+      ],
+      hard: [
+        {emoji:'🌻',word:'해바라기'},{emoji:'🎻',word:'바이올린'},{emoji:'📺',word:'텔레비전'},
+        {emoji:'🚁',word:'헬리콥터'},{emoji:'🎄',word:'크리스마스'},{emoji:'🍦',word:'아이스크림'},
+        {emoji:'🎠',word:'회전목마'},{emoji:'🎅',word:'산타클로스'},{emoji:'🎢',word:'롤러코스터'},
+        {emoji:'🏖️',word:'해수욕장'},{emoji:'🎁',word:'생일선물'},{emoji:'🚒',word:'소방자동차'},
+      ],
+    };
+
+    const TOTAL_PROBLEMS = 10;
+    const ENCOURAGE = ['잘했어요! 👏','대단해요! ⭐','멋져요! 🎉','정답이에요! 😊','최고예요! 🧠','완벽해요! 💯','천재! 🏆'];
+    const ENCOURAGE_WRONG = ['다시 해봐요! 😊','천천히 생각해봐요! 🤔','힘내요! 💪','할 수 있어요! 🌟'];
+
+    let currentDifficulty = 'easy';
+    let problems = [];
+    let currentIdx = 0;
+    let attempts = 0;
+    let score = 0;
+    let results = []; // {emoji, word, correct}
+    let answered = false;
+
+    // ── 효과음 ──
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+    function getAudioCtx() { if (!audioCtx) audioCtx = new AudioCtx(); if (audioCtx.state === 'suspended') audioCtx.resume(); return audioCtx; }
+    function playCorrect() {
+      const ctx = getAudioCtx(), t = ctx.currentTime;
+      [523,659,784].forEach((f,i) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination); o.type = 'sine';
+        o.frequency.setValueAtTime(f, t + i * 0.1);
+        g.gain.setValueAtTime(0.25, t + i * 0.1);
+        g.gain.exponentialRampToValueAtTime(0.01, t + i * 0.1 + 0.25);
+        o.start(t + i * 0.1); o.stop(t + i * 0.1 + 0.25);
+      });
+    }
+    function playWrong() {
+      const ctx = getAudioCtx(), t = ctx.currentTime;
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination); o.type = 'square';
+      o.frequency.setValueAtTime(200, t);
+      g.gain.setValueAtTime(0.12, t);
+      g.gain.exponentialRampToValueAtTime(0.01, t + 0.25);
+      o.start(t); o.stop(t + 0.25);
+    }
+    function playFanfare() {
+      const ctx = getAudioCtx(), t = ctx.currentTime;
+      [[523,659,784],[587,740,880],[523,659,784,1047]].forEach((chord,ci) => {
+        chord.forEach(f => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination); o.type = 'sine';
+          o.frequency.setValueAtTime(f, t + ci * 0.3);
+          g.gain.setValueAtTime(0.12, t + ci * 0.3);
+          g.gain.exponentialRampToValueAtTime(0.01, t + ci * 0.3 + 0.5);
+          o.start(t + ci * 0.3); o.stop(t + ci * 0.3 + 0.5);
+        });
+      });
+    }
+
+    // ── 유틸 ──
+    function shuffle(arr) { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; }
+    function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    function showFeedback(correct, msg) {
+      const overlay = document.createElement('div');
+      overlay.className = 'feedback-overlay';
+      const m = document.createElement('div');
+      m.className = 'feedback-msg ' + (correct ? 'feedback-correct' : 'feedback-wrong');
+      m.textContent = msg;
+      overlay.appendChild(m);
+      document.body.appendChild(overlay);
+      setTimeout(() => overlay.remove(), 800);
+    }
+
+    // ── 게임 시작 ──
+    function startGame(difficulty) {
+      getAudioCtx();
+      currentDifficulty = difficulty;
+      currentIdx = 0;
+      score = 0;
+      results = [];
+
+      let pool;
+      if (difficulty === 'random') {
+        pool = [...WORDS.easy, ...WORDS.normal, ...WORDS.hard];
+      } else {
+        pool = [...WORDS[difficulty]];
+      }
+      shuffle(pool);
+      problems = pool.slice(0, TOTAL_PROBLEMS);
+
+      showScreen('screen-game');
+      loadProblem();
+    }
+
+    function loadProblem() {
+      const p = problems[currentIdx];
+      attempts = 0;
+      answered = false;
+
+      document.getElementById('game-counter').textContent = `${currentIdx + 1} / ${TOTAL_PROBLEMS}`;
+      document.getElementById('game-score').textContent = `⭐ ${score}`;
+      document.getElementById('emoji-display').textContent = p.emoji;
+      document.getElementById('hint-text').textContent = '';
+      document.getElementById('btn-submit').style.display = '';
+      document.getElementById('btn-submit').disabled = false;
+      document.getElementById('btn-next').style.display = 'none';
+
+      const input = document.getElementById('answer-input');
+      input.value = '';
+      input.className = 'answer-input';
+      input.disabled = false;
+      input.placeholder = `${p.word.length}글자`;
+      input.focus();
+    }
+
+    function submitAnswer() {
+      if (answered) return;
+      const input = document.getElementById('answer-input');
+      const userAnswer = input.value.trim();
+      const correct = problems[currentIdx];
+
+      if (!userAnswer) return;
+
+      if (userAnswer === correct.word) {
+        // 정답!
+        answered = true;
+        score++;
+        results.push({ emoji: correct.emoji, word: correct.word, correct: true });
+        playCorrect();
+        showFeedback(true, pick(ENCOURAGE));
+
+        input.className = 'answer-input correct';
+        input.disabled = true;
+        document.getElementById('game-score').textContent = `⭐ ${score}`;
+        document.getElementById('btn-submit').style.display = 'none';
+        document.getElementById('hint-text').innerHTML = `<span style="color:var(--green)">정답! ${correct.emoji} = ${correct.word}</span>`;
+
+        if (currentIdx + 1 >= TOTAL_PROBLEMS) {
+          setTimeout(() => showResult(), 1000);
+        } else {
+          document.getElementById('btn-next').style.display = '';
+        }
+      } else {
+        // 오답
+        attempts++;
+        playWrong();
+        input.className = 'answer-input wrong';
+        setTimeout(() => { input.className = 'answer-input'; }, 500);
+
+        if (attempts === 1) {
+          showFeedback(false, pick(ENCOURAGE_WRONG));
+          document.getElementById('hint-text').textContent = `💡 ${correct.word.length}글자 단어예요!`;
+        } else if (attempts === 2) {
+          showFeedback(false, '한 번 더 도전! 💪');
+          // 첫 글자 힌트
+          document.getElementById('hint-text').textContent = `💡 "${correct.word[0]}"으로 시작해요!`;
+        } else {
+          // 3번 틀림 → 정답 공개
+          answered = true;
+          results.push({ emoji: correct.emoji, word: correct.word, correct: false });
+          showFeedback(false, `정답은 "${correct.word}"이에요!`);
+
+          input.className = 'answer-input wrong';
+          input.value = correct.word;
+          input.disabled = true;
+          document.getElementById('btn-submit').style.display = 'none';
+          document.getElementById('hint-text').innerHTML = `<span style="color:var(--accent)">정답: ${correct.emoji} = ${correct.word}</span>`;
+
+          if (currentIdx + 1 >= TOTAL_PROBLEMS) {
+            setTimeout(() => showResult(), 1500);
+          } else {
+            document.getElementById('btn-next').style.display = '';
+          }
+        }
+
+        input.value = '';
+        input.focus();
+      }
+    }
+
+    function nextProblem() {
+      currentIdx++;
+      loadProblem();
+    }
+
+    function showResult() {
+      playFanfare();
+      showScreen('screen-result');
+
+      const pct = Math.round((score / TOTAL_PROBLEMS) * 100);
+      let emoji, title;
+      if (pct === 100) { emoji = '🏆'; title = '완벽해요!'; }
+      else if (pct >= 80) { emoji = '🎉'; title = '잘했어요!'; }
+      else if (pct >= 50) { emoji = '⭐'; title = '좋아요!'; }
+      else { emoji = '💪'; title = '다시 도전해봐요!'; }
+
+      document.getElementById('result-emoji').textContent = emoji;
+      document.getElementById('result-title').textContent = title;
+      document.getElementById('result-detail').textContent = `${score} / ${TOTAL_PROBLEMS} 정답! (${pct}%)`;
+
+      const starCount = pct === 100 ? 3 : pct >= 70 ? 2 : pct >= 40 ? 1 : 0;
+      document.getElementById('result-stars').textContent = '⭐'.repeat(starCount) + '☆'.repeat(3 - starCount);
+
+      const list = document.getElementById('result-list');
+      list.innerHTML = '';
+      results.forEach(r => {
+        list.innerHTML += `<div class="result-item">
+          <span class="ri-emoji">${r.emoji}</span>
+          <span class="ri-word">${r.word}</span>
+          <span class="ri-mark">${r.correct ? '✅' : '❌'}</span>
+        </div>`;
+      });
+
+      // 꽃가루 효과 (100%일 때)
+      if (pct === 100) spawnConfetti();
+    }
+
+    function spawnConfetti() {
+      const colors = ['#e94560','#4ecca3','#f5c518','#6c5ce7','#ff9f43'];
+      for (let i = 0; i < 30; i++) {
+        const c = document.createElement('div');
+        c.style.cssText = `position:fixed;top:-10px;left:${Math.random()*100}%;width:10px;height:10px;
+          background:${colors[i%colors.length]};border-radius:50%;z-index:300;pointer-events:none;
+          animation:confettiFall ${1+Math.random()*2}s linear ${Math.random()*0.5}s forwards;`;
+        document.body.appendChild(c);
+        setTimeout(() => c.remove(), 4000);
+      }
+    }
+
+    function backToSelect() { showScreen('screen-select'); }
+    function retryGame() { startGame(currentDifficulty); }
+
+    // 엔터키로 제출
+    document.getElementById('answer-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        if (answered && currentIdx + 1 < TOTAL_PROBLEMS) nextProblem();
+        else if (!answered) submitAnswer();
+      }
+    });
+  </script>
+</body>
+</html>
