@@ -216,7 +216,6 @@
            autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="10">
 
     <button class="submit-btn" id="btn-submit" onclick="submitAnswer()">확인!</button>
-    <button class="next-btn" id="btn-next" style="display:none" onclick="nextProblem()">다음 문제 →</button>
   </div>
 
   <!-- 결과 화면 -->
@@ -370,7 +369,6 @@
       document.getElementById('hint-text').textContent = '';
       document.getElementById('btn-submit').style.display = '';
       document.getElementById('btn-submit').disabled = false;
-      document.getElementById('btn-next').style.display = 'none';
 
       const input = document.getElementById('answer-input');
       input.value = '';
@@ -405,7 +403,7 @@
         if (currentIdx + 1 >= TOTAL_PROBLEMS) {
           setTimeout(() => showResult(), 1000);
         } else {
-          document.getElementById('btn-next').style.display = '';
+          setTimeout(() => { currentIdx++; loadProblem(); }, 1000);
         }
       } else {
         // 오답
@@ -436,18 +434,13 @@
           if (currentIdx + 1 >= TOTAL_PROBLEMS) {
             setTimeout(() => showResult(), 1500);
           } else {
-            document.getElementById('btn-next').style.display = '';
+            setTimeout(() => { currentIdx++; loadProblem(); }, 1500);
           }
         }
 
         input.value = '';
         input.focus();
       }
-    }
-
-    function nextProblem() {
-      currentIdx++;
-      loadProblem();
     }
 
     function showResult() {
@@ -499,10 +492,7 @@
 
     // 엔터키로 제출
     document.getElementById('answer-input').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        if (answered && currentIdx + 1 < TOTAL_PROBLEMS) nextProblem();
-        else if (!answered) submitAnswer();
-      }
+      if (e.key === 'Enter' && !answered) submitAnswer();
     });
   </script>
 </body>
