@@ -530,7 +530,7 @@
     function loadProblem() {
       if (wordPool.length === 0) wordPool = shuffle([...WORDS[currentStageId]]);
       currentWord = wordPool.pop();
-      attempts = 0; problemStars = 3;
+      attempts = 0; problemStars = 3; answered = false;
 
       document.getElementById('problem-counter').textContent = `${currentProblemIdx+1} / ${PROBLEMS_PER_SET}`;
       document.getElementById('problem-stars').textContent = '⭐ ' + sessionStars;
@@ -551,6 +551,7 @@
     }
 
     async function submitAnswer() {
+      if (answered) return;
       getAudioCtx();
       let userAnswer = '';
 
@@ -585,6 +586,7 @@
       resultEl.style.display = 'block';
 
       if (correct) {
+        answered = true;
         playCorrectSound();
         sessionStars += problemStars;
         sessionCompleted++;
@@ -629,6 +631,7 @@
           hint.textContent = `💡 다시 들어보고 천천히 써보세요!`;
         }
         if (attempts >= 3) {
+          answered = true;
           problemStars = 0;
           const hint = document.getElementById('hint-area');
           hint.textContent = `정답: ${currentWord}`;
@@ -681,7 +684,17 @@
     }
 
     // 타이핑 엔터키
-    document.getElementById('typing-input').addEventListener('keydown', e => { if (e.key === 'Enter') submitAnswer(); });
+    let answered = false;
+    document.getElementById('typing-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (answered && document.getElementById('btn-next').style.display !== 'none') {
+          nextProblem();
+        } else if (!answered) {
+          submitAnswer();
+        }
+      }
+    });
 
     renderStageSelect();
   </script>
