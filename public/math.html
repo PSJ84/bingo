@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>수학 공부</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/icons/icon-192.svg">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #1a1a2e;
+      --card: #16213e;
+      --accent: #e94560;
+      --accent2: #0f3460;
+      --gold: #f5c518;
+      --text: #eee;
+      --green: #4ecca3;
+      --orange: #ff9f43;
+      --purple: #6c5ce7;
+      --block-ten: #e94560;
+      --block-one: #4ecca3;
+    }
+
+    body {
+      font-family: 'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-x: hidden;
+    }
+
+    h1 { font-size: 1.8rem; margin: 16px 0 8px; text-align: center; }
+    .sub-text { color: #888; font-size: 0.85rem; margin: 4px 0; }
+
+    .screen { display: none; width: 100%; max-width: 500px; padding: 16px; }
+    .screen.active { display: flex; flex-direction: column; align-items: center; }
+
+    .back-btn {
+      background: none; border: 1px solid #555; color: #aaa;
+      padding: 8px 20px; border-radius: 8px; cursor: pointer;
+      font-size: 0.9rem; margin: 8px 0; text-decoration: none;
+      display: inline-block; text-align: center;
+    }
+
+    /* ── 단계 선택 ── */
+    .stage-list { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+
+    .stage-card {
+      display: flex; align-items: center; gap: 14px; padding: 16px 18px;
+      background: var(--card); border-radius: 16px; cursor: pointer;
+      border: 2px solid #333; transition: all 0.15s;
+    }
+    .stage-card:hover { border-color: var(--gold); transform: scale(1.02); }
+    .stage-card:active { transform: scale(0.97); }
+    .stage-card.locked { opacity: 0.4; pointer-events: none; }
+    .stage-card.current { border-color: var(--gold); }
+
+    .stage-num {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem; font-weight: 900; flex-shrink: 0;
+    }
+    .stage-info { flex: 1; }
+    .stage-title { font-weight: 700; font-size: 1rem; margin-bottom: 2px; }
+    .stage-desc { font-size: 0.78rem; color: #888; }
+    .stage-progress { margin-top: 4px; }
+    .progress-bar { height: 4px; background: #333; border-radius: 2px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--gold); border-radius: 2px; transition: width 0.3s; }
+    .stage-stars { font-size: 0.75rem; color: var(--gold); margin-top: 2px; }
+    .stage-lock { font-size: 1.2rem; color: #555; }
+
+    /* ── 문제 화면 ── */
+    .problem-header {
+      width: 100%; display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 0; margin-bottom: 8px;
+    }
+    .problem-counter { font-size: 0.9rem; color: #888; font-weight: 700; }
+    .problem-stars-display { font-size: 1rem; }
+
+    .problem-equation {
+      font-size: 2.2rem; font-weight: 900; text-align: center;
+      padding: 12px 0; margin: 4px 0;
+      background: rgba(108,92,231,0.1); border-radius: 16px; width: 100%;
+    }
+    .eq-highlight { color: var(--gold); }
+
+    /* ── 수모형 블록 ── */
+    .blocks-area {
+      width: 100%; min-height: 120px; padding: 12px;
+      display: flex; align-items: center; justify-content: center; gap: 16px;
+      background: rgba(255,255,255,0.03); border-radius: 16px; margin: 8px 0;
+      flex-wrap: wrap;
+    }
+
+    .block-group { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+    .block-group-label { font-size: 0.75rem; color: #888; margin-bottom: 2px; }
+    .block-rows { display: flex; flex-direction: column; gap: 3px; }
+    .block-row { display: flex; gap: 2px; }
+
+    .block-ten {
+      width: 110px; height: 22px; border-radius: 4px;
+      display: flex; gap: 1px; overflow: hidden;
+      transition: all 0.4s ease;
+    }
+    .block-ten .unit {
+      flex: 1; background: rgba(255,255,255,0.2);
+      border-right: 1px solid rgba(0,0,0,0.15);
+    }
+    .block-ten .unit:last-child { border-right: none; }
+    .block-ten.red { background: var(--block-ten); }
+    .block-ten.blue { background: var(--accent2); }
+    .block-ten.green { background: var(--green); }
+
+    .block-one {
+      width: 22px; height: 22px; border-radius: 3px;
+      transition: all 0.4s ease;
+    }
+    .block-one.green { background: var(--block-one); }
+    .block-one.red { background: var(--block-ten); }
+    .block-one.orange { background: var(--orange); }
+    .block-one.gold { background: var(--gold); }
+    .block-one.dim { opacity: 0.3; }
+    .block-one.highlight { box-shadow: 0 0 8px var(--gold); transform: scale(1.15); }
+
+    .blocks-op {
+      font-size: 2rem; font-weight: 900; color: var(--purple);
+      margin: 0 4px; align-self: center;
+    }
+    .blocks-eq { font-size: 2rem; font-weight: 900; color: #888; margin: 0 4px; }
+
+    .ten-frame {
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px;
+      padding: 6px; background: rgba(255,255,255,0.05); border-radius: 8px;
+      border: 2px dashed #444;
+    }
+    .ten-frame-cell {
+      width: 26px; height: 26px; border-radius: 4px;
+      border: 1px dashed #444; display: flex; align-items: center; justify-content: center;
+    }
+    .ten-frame-cell.filled { border: none; }
+
+    /* ── 단계별 풀이 ── */
+    .step-area { width: 100%; text-align: center; margin: 8px 0; }
+    .step-prompt {
+      font-size: 1.15rem; font-weight: 600; padding: 12px;
+      background: rgba(245,197,24,0.08); border-radius: 12px;
+      margin-bottom: 8px; line-height: 1.5;
+    }
+    .step-hint {
+      font-size: 0.9rem; color: var(--orange); margin: 6px 0;
+      animation: fadeIn 0.3s;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    /* ── 숫자 패드 ── */
+    .numpad { margin: 8px 0; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .numpad-display {
+      font-size: 2rem; font-weight: 900; min-width: 80px; text-align: center;
+      padding: 8px 16px; background: var(--card); border-radius: 12px;
+      border: 2px solid #444; min-height: 48px;
+    }
+    .numpad-single { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+    .numpad-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    }
+    .numpad-btn {
+      width: 68px; height: 54px; font-size: 1.5rem; font-weight: 800;
+      border: none; border-radius: 12px; cursor: pointer;
+      background: var(--card); color: var(--text);
+      transition: all 0.1s; border: 2px solid #333;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .numpad-btn:active { transform: scale(0.9); background: var(--accent2); }
+    .numpad-btn.enter { background: var(--green); color: #000; border-color: var(--green); }
+    .numpad-btn.backspace { font-size: 1.2rem; }
+
+    /* ── 피드백 ── */
+    .feedback-overlay {
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: none; animation: feedbackPop 0.8s forwards;
+    }
+    .feedback-msg {
+      font-size: 1.8rem; font-weight: 900; padding: 20px 40px;
+      border-radius: 20px; animation: feedbackScale 0.5s ease;
+    }
+    .feedback-correct { background: rgba(78,204,163,0.95); color: #000; }
+    .feedback-wrong { background: rgba(233,69,96,0.95); color: #fff; }
+    @keyframes feedbackPop { 0% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
+    @keyframes feedbackScale { 0% { transform: scale(0.5); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+    .next-btn {
+      margin-top: 12px; padding: 14px 40px;
+      background: var(--green); color: #000; font-weight: 800;
+      font-size: 1.1rem; border: none; border-radius: 14px; cursor: pointer;
+    }
+    .next-btn:active { transform: scale(0.96); }
+
+    /* ── 완료 화면 ── */
+    .complete-emoji { font-size: 4rem; margin: 16px 0; }
+    .complete-title { font-size: 1.6rem; font-weight: 900; color: var(--gold); }
+    .complete-subtitle { font-size: 1.1rem; color: #ccc; margin: 8px 0 16px; }
+    .complete-stars { font-size: 2rem; margin: 8px 0; }
+    .complete-btn {
+      padding: 14px 36px; border: none; border-radius: 14px;
+      font-size: 1.1rem; font-weight: 800; cursor: pointer; margin: 6px;
+    }
+    .complete-btn.primary { background: var(--green); color: #000; }
+    .complete-btn.secondary { background: var(--card); color: var(--text); border: 1px solid #555; }
+
+    /* ── 토스트 ── */
+    .toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: var(--accent); color: #fff; padding: 12px 24px;
+      border-radius: 12px; font-weight: 600; z-index: 200;
+      animation: toastIn 0.3s, toastOut 0.3s 2s forwards;
+    }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(20px); } }
+    @keyframes toastOut { to { opacity: 0; transform: translateX(-50%) translateY(20px); } }
+
+    /* ── 별 애니메이션 ── */
+    @keyframes starPop {
+      0% { transform: scale(0) rotate(-30deg); }
+      60% { transform: scale(1.4) rotate(10deg); }
+      100% { transform: scale(1) rotate(0deg); }
+    }
+    .star-pop { display: inline-block; animation: starPop 0.4s ease; }
+
+    @media (max-width: 360px) {
+      .problem-equation { font-size: 1.8rem; }
+      .numpad-btn { width: 58px; height: 46px; font-size: 1.3rem; }
+      .block-ten { width: 90px; height: 18px; }
+      .block-one { width: 18px; height: 18px; }
+      .ten-frame-cell { width: 22px; height: 22px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 단계 선택 -->
+  <div id="screen-stages" class="screen active">
+    <h1>📐 수학 공부</h1>
+    <p class="sub-text">단계별로 덧셈 뺄셈을 배워요!</p>
+    <div class="stage-list" id="stage-list"></div>
+    <a href="/" class="back-btn" style="margin-top:8px;">🏠 홈으로</a>
+  </div>
+
+  <!-- 문제 풀이 -->
+  <div id="screen-problem" class="screen">
+    <div class="problem-header">
+      <button class="back-btn" onclick="backToStages()" style="margin:0; padding:6px 14px;">← 목록</button>
+      <span class="problem-counter" id="problem-counter">1 / 10</span>
+      <span class="problem-stars-display" id="problem-stars"></span>
+    </div>
+
+    <div class="problem-equation" id="problem-equation"></div>
+    <div class="blocks-area" id="blocks-area"></div>
+
+    <div class="step-area" id="step-area">
+      <div class="step-prompt" id="step-prompt"></div>
+      <div id="step-hint" style="display:none"></div>
+    </div>
+
+    <div class="numpad" id="numpad-area"></div>
+
+    <button class="next-btn" id="btn-next-problem" style="display:none" onclick="nextProblem()">
+      다음 문제 →
+    </button>
+  </div>
+
+  <!-- 완료 화면 -->
+  <div id="screen-complete" class="screen">
+    <div class="complete-emoji" id="complete-emoji">🏆</div>
+    <div class="complete-title" id="complete-title">단계 클리어!</div>
+    <div class="complete-subtitle" id="complete-subtitle"></div>
+    <div class="complete-stars" id="complete-stars"></div>
+    <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:12px;">
+      <button class="complete-btn secondary" onclick="backToStages()">목록으로</button>
+      <button class="complete-btn secondary" onclick="retryStage()">다시 하기</button>
+      <button class="complete-btn primary" id="btn-next-stage" onclick="goNextStage()">다음 단계 →</button>
+    </div>
+  </div>
+
+  <script>
+    // ══════════════════════════════
+    // ── 상수 ──
+    // ══════════════════════════════
+    const STAGES = [
+      { id: 1, title: '한 자리 덧셈', desc: '합이 9 이하', icon: '➕', color: '#4ecca3' },
+      { id: 2, title: '한 자리 뺄셈', desc: '한 자리 수끼리 빼기', icon: '➖', color: '#e94560' },
+      { id: 3, title: '10 만들기', desc: '합이 10, 10에서 빼기', icon: '🔟', color: '#f5c518' },
+      { id: 4, title: '10을 만들어 더하기', desc: '받아올림의 기초', icon: '💡', color: '#ff9f43' },
+      { id: 5, title: '두 자리 덧셈 뺄셈', desc: '받아올림 없는 계산', icon: '📊', color: '#6c5ce7' },
+      { id: 6, title: '받아올림 받아내림', desc: '두 자리 수의 도전!', icon: '🚀', color: '#e94560' },
+    ];
+
+    const PROBLEMS_PER_SET = 10;
+    const UNLOCK_THRESHOLD = 7;
+
+    const ENCOURAGE_CORRECT = [
+      '잘했어요! 👏', '대단해요! ⭐', '멋져요! 🎉',
+      '정답이에요! 😊', '최고예요! 🧠', '완벽해요! 💯',
+      '역시! 👍', '잘하고 있어요! 🌟',
+    ];
+    const ENCOURAGE_WRONG = [
+      '괜찮아요, 다시 해볼까요? 😊',
+      '조금만 더 생각해봐요! 🤔',
+      '천천히 해도 괜찮아요 💪',
+      '힘내요! 할 수 있어요! 😄',
+    ];
+    const ENCOURAGE_HINT = [
+      '힌트를 줄게요! 💡', '이렇게 생각해보면 어때요? 👀',
+    ];
+
+    // ══════════════════════════════
+    // ── 상태 ──
+    // ══════════════════════════════
+    let currentStageId = 0;
+    let currentProblemIdx = 0;
+    let currentProblem = null;
+    let currentSteps = [];
+    let currentStepIdx = 0;
+    let stepAttempts = 0;
+    let problemStars = 3;
+    let sessionStars = 0;
+    let sessionCompleted = 0;
+    let numpadValue = '';
+    let waitingNext = false;
+    let progress = loadProgress();
+
+    // ══════════════════════════════
+    // ── 유틸 ──
+    // ══════════════════════════════
+    function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+    function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    function showToast(msg) {
+      const t = document.createElement('div');
+      t.className = 'toast'; t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2500);
+    }
+
+    // ══════════════════════════════
+    // ── 효과음 ──
+    // ══════════════════════════════
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+    function getAudioCtx() {
+      if (!audioCtx) audioCtx = new AudioCtx();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    }
+
+    function playCorrectSound() {
+      const ctx = getAudioCtx(); const t = ctx.currentTime;
+      [523, 659, 784].forEach((f, i) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination); o.type = 'sine';
+        o.frequency.setValueAtTime(f, t + i * 0.1);
+        g.gain.setValueAtTime(0.25, t + i * 0.1);
+        g.gain.exponentialRampToValueAtTime(0.01, t + i * 0.1 + 0.25);
+        o.start(t + i * 0.1); o.stop(t + i * 0.1 + 0.25);
+      });
+    }
+
+    function playWrongSound() {
+      const ctx = getAudioCtx(); const t = ctx.currentTime;
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination); o.type = 'square';
+      o.frequency.setValueAtTime(200, t);
+      g.gain.setValueAtTime(0.12, t);
+      g.gain.exponentialRampToValueAtTime(0.01, t + 0.25);
+      o.start(t); o.stop(t + 0.25);
+    }
+
+    function playStepSound() {
+      const ctx = getAudioCtx(); const t = ctx.currentTime;
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination); o.type = 'sine';
+      o.frequency.setValueAtTime(660, t);
+      g.gain.setValueAtTime(0.2, t);
+      g.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+      o.start(t); o.stop(t + 0.15);
+    }
+
+    function playClearSound() {
+      const ctx = getAudioCtx(); const t = ctx.currentTime;
+      [[523,659,784],[587,740,880],[523,659,784,1047]].forEach((chord, ci) => {
+        chord.forEach(f => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination); o.type = 'sine';
+          o.frequency.setValueAtTime(f, t + ci * 0.3);
+          g.gain.setValueAtTime(0.12, t + ci * 0.3);
+          g.gain.exponentialRampToValueAtTime(0.01, t + ci * 0.3 + 0.5);
+          o.start(t + ci * 0.3); o.stop(t + ci * 0.3 + 0.5);
+        });
+      });
+    }
+
+    // ══════════════════════════════
+    // ── 진행도 ──
+    // ══════════════════════════════
+    function loadProgress() {
+      try {
+        const d = JSON.parse(localStorage.getItem('math-progress'));
+        if (d && d.stages) return d;
+      } catch(e) {}
+      return {
+        stages: {
+          1: { completed: 0, stars: 0, unlocked: true },
+          2: { completed: 0, stars: 0, unlocked: true },
+          3: { completed: 0, stars: 0, unlocked: false },
+          4: { completed: 0, stars: 0, unlocked: false },
+          5: { completed: 0, stars: 0, unlocked: false },
+          6: { completed: 0, stars: 0, unlocked: false },
+        }
+      };
+    }
+
+    function saveProgress() {
+      localStorage.setItem('math-progress', JSON.stringify(progress));
+    }
+
+    function checkUnlocks() {
+      for (let i = 2; i <= 6; i++) {
+        const prev = progress.stages[i - 1];
+        if (prev && prev.completed >= UNLOCK_THRESHOLD) {
+          progress.stages[i].unlocked = true;
+        }
+      }
+      saveProgress();
+    }
+
+    // ══════════════════════════════
+    // ── 단계 선택 화면 ──
+    // ══════════════════════════════
+    function renderStageSelect() {
+      checkUnlocks();
+      const list = document.getElementById('stage-list');
+      list.innerHTML = '';
+      STAGES.forEach(s => {
+        const p = progress.stages[s.id];
+        const pct = Math.min(100, Math.round((p.completed / PROBLEMS_PER_SET) * 100));
+        const locked = !p.unlocked;
+
+        const card = document.createElement('div');
+        card.className = 'stage-card' + (locked ? ' locked' : '') + (p.completed > 0 && p.completed < PROBLEMS_PER_SET ? ' current' : '');
+        card.innerHTML = `
+          <div class="stage-num" style="background:${s.color}20; color:${s.color};">${s.icon}</div>
+          <div class="stage-info">
+            <div class="stage-title">${s.title}</div>
+            <div class="stage-desc">${s.desc}</div>
+            <div class="stage-progress">
+              <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+              <div class="stage-stars">${p.stars > 0 ? '⭐ ' + p.stars : ''} ${p.completed > 0 ? p.completed + '/' + PROBLEMS_PER_SET + ' 완료' : ''}</div>
+            </div>
+          </div>
+          ${locked ? '<span class="stage-lock">🔒</span>' : '<span style="color:#555;font-size:1.2rem;">→</span>'}
+        `;
+        if (!locked) card.onclick = () => startStage(s.id);
+        list.appendChild(card);
+      });
+    }
+
+    // ══════════════════════════════
+    // ── 문제 생성 ──
+    // ══════════════════════════════
+    function generateProblem(stageId) {
+      switch (stageId) {
+        case 1: return genStage1();
+        case 2: return genStage2();
+        case 3: return genStage3();
+        case 4: return genStage4();
+        case 5: return genStage5();
+        case 6: return genStage6();
+      }
+    }
+
+    function genStage1() {
+      const a = randInt(1, 8), b = randInt(1, 9 - a);
+      return { a, b, op: '+', answer: a + b, type: 'simple-add' };
+    }
+
+    function genStage2() {
+      const a = randInt(2, 9), b = randInt(1, a - 1);
+      return { a, b, op: '-', answer: a - b, type: 'simple-sub' };
+    }
+
+    function genStage3() {
+      if (Math.random() < 0.5) {
+        const a = randInt(1, 9);
+        return { a, b: 10 - a, op: '+', answer: 10, type: 'make-10-add', missing: 'b' };
+      } else {
+        const b = randInt(1, 9);
+        return { a: 10, b, op: '-', answer: 10 - b, type: 'make-10-sub' };
+      }
+    }
+
+    function genStage4() {
+      const a = randInt(6, 9);
+      const total = randInt(11, 18);
+      const b = total - a;
+      if (b < 2 || b > 9) return genStage4();
+      const split = 10 - a;
+      const remainder = b - split;
+      return {
+        a, b, op: '+', answer: total, type: 'make-10-strategy',
+        split, remainder,
+      };
+    }
+
+    function genStage5() {
+      if (Math.random() < 0.5) {
+        const tensA = randInt(1, 4), onesA = randInt(1, 8);
+        const tensB = randInt(1, 4), onesB = randInt(1, 9 - onesA);
+        const a = tensA * 10 + onesA, b = tensB * 10 + onesB;
+        if (a + b > 99) return genStage5();
+        return { a, b, op: '+', answer: a + b, type: 'two-digit-add' };
+      } else {
+        const tensA = randInt(3, 8), onesA = randInt(3, 9);
+        const tensB = randInt(1, tensA - 1), onesB = randInt(1, onesA - 1);
+        const a = tensA * 10 + onesA, b = tensB * 10 + onesB;
+        return { a, b, op: '-', answer: a - b, type: 'two-digit-sub' };
+      }
+    }
+
+    function genStage6() {
+      if (Math.random() < 0.5) {
+        // 받아올림
+        const tensA = randInt(1, 5), onesA = randInt(4, 9);
+        const tensB = randInt(1, 4), onesB = randInt(11 - onesA, 9);
+        if (onesA + onesB < 10) return genStage6();
+        const a = tensA * 10 + onesA, b = tensB * 10 + onesB;
+        if (a + b > 99) return genStage6();
+        return { a, b, op: '+', answer: a + b, type: 'two-digit-carry' };
+      } else {
+        // 받아내림
+        const tensA = randInt(3, 8), onesA = randInt(0, 4);
+        const tensB = randInt(1, tensA - 1), onesB = randInt(onesA + 1, 9);
+        const a = tensA * 10 + onesA, b = tensB * 10 + onesB;
+        if (a - b < 1) return genStage6();
+        return { a, b, op: '-', answer: a - b, type: 'two-digit-borrow' };
+      }
+    }
+
+    // ══════════════════════════════
+    // ── 단계별 풀이 스텝 생성 ──
+    // ══════════════════════════════
+    function buildSteps(problem) {
+      const p = problem;
+      switch (p.type) {
+        case 'simple-add':
+          return [{ prompt: `${p.a} + ${p.b} = ?`, answer: p.answer, hint: `${p.a}개에서 ${p.b}개를 이어 세어보세요!` }];
+
+        case 'simple-sub':
+          return [{ prompt: `${p.a} - ${p.b} = ?`, answer: p.answer, hint: `${p.a}개에서 ${p.b}개를 빼보세요!` }];
+
+        case 'make-10-add':
+          return [{ prompt: `${p.a} + ? = 10`, answer: p.b, hint: `10이 되려면 ${p.a}에 몇을 더해야 할까요?` }];
+
+        case 'make-10-sub':
+          return [{ prompt: `10 - ${p.b} = ?`, answer: p.answer, hint: `10개에서 ${p.b}개를 빼면 몇 개 남을까요?` }];
+
+        case 'make-10-strategy':
+          return [
+            { prompt: `${p.a}에 몇을 더하면 10이 될까요?`, answer: p.split, hint: `${p.a} + ? = 10` },
+            { prompt: `${p.b}에서 ${p.split}을 가져왔어요.\n남은 것은 몇일까요?`, answer: p.remainder, hint: `${p.b} - ${p.split} = ?` },
+            { prompt: `10 + ${p.remainder} = ?`, answer: p.answer, hint: `10과 ${p.remainder}을 합치면?` },
+          ];
+
+        case 'two-digit-add': {
+          const tA = Math.floor(p.a / 10), oA = p.a % 10;
+          const tB = Math.floor(p.b / 10), oB = p.b % 10;
+          return [
+            { prompt: `일의 자리: ${oA} + ${oB} = ?`, answer: oA + oB, hint: `일의 자리 숫자끼리 더해보세요!` },
+            { prompt: `십의 자리: ${tA} + ${tB} = ?`, answer: tA + tB, hint: `십의 자리 숫자끼리 더해보세요!` },
+            { prompt: `합치면: ${p.a} + ${p.b} = ?`, answer: p.answer, hint: `${(tA+tB)*10} + ${oA+oB} = ?` },
+          ];
+        }
+
+        case 'two-digit-sub': {
+          const tA = Math.floor(p.a / 10), oA = p.a % 10;
+          const tB = Math.floor(p.b / 10), oB = p.b % 10;
+          return [
+            { prompt: `일의 자리: ${oA} - ${oB} = ?`, answer: oA - oB, hint: `일의 자리 숫자끼리 빼보세요!` },
+            { prompt: `십의 자리: ${tA} - ${tB} = ?`, answer: tA - tB, hint: `십의 자리 숫자끼리 빼보세요!` },
+            { prompt: `합치면: ${p.a} - ${p.b} = ?`, answer: p.answer, hint: `${(tA-tB)*10} + ${oA-oB} = ?` },
+          ];
+        }
+
+        case 'two-digit-carry': {
+          const tA = Math.floor(p.a / 10), oA = p.a % 10;
+          const tB = Math.floor(p.b / 10), oB = p.b % 10;
+          const onesSum = oA + oB;
+          const carry = Math.floor(onesSum / 10);
+          const onesResult = onesSum % 10;
+          const tensResult = tA + tB + carry;
+          return [
+            { prompt: `일의 자리: ${oA} + ${oB} = ?`, answer: onesSum, hint: `${oA}과 ${oB}를 더해보세요!` },
+            { prompt: `${onesSum}에서 10을 십의 자리로 올려요!\n일의 자리에 남는 수는?`, answer: onesResult, hint: `${onesSum} - 10 = ?` },
+            { prompt: `십의 자리: ${tA} + ${tB} + 1(올림) = ?`, answer: tensResult, hint: `${tA} + ${tB} + 1 = ?` },
+            { prompt: `답: ${p.a} + ${p.b} = ?`, answer: p.answer, hint: `${tensResult}${onesResult}` },
+          ];
+        }
+
+        case 'two-digit-borrow': {
+          const tA = Math.floor(p.a / 10), oA = p.a % 10;
+          const tB = Math.floor(p.b / 10), oB = p.b % 10;
+          const borrowedOnes = oA + 10;
+          const onesResult = borrowedOnes - oB;
+          const tensResult = (tA - 1) - tB;
+          return [
+            { prompt: `일의 자리: ${oA}에서 ${oB}을 뺄 수 있나요?\n${oA} < ${oB} 이니까 빌려와야 해요!`, answer: borrowedOnes, hint: `십의 자리에서 10을 빌려오면 ${oA} + 10 = ?` },
+            { prompt: `이제 일의 자리: ${borrowedOnes} - ${oB} = ?`, answer: onesResult, hint: `${borrowedOnes}에서 ${oB}을 빼보세요!` },
+            { prompt: `십의 자리: ${tA} - 1(빌림) - ${tB} = ?`, answer: tensResult, hint: `${tA} - 1 = ${tA-1}, ${tA-1} - ${tB} = ?` },
+            { prompt: `답: ${p.a} - ${p.b} = ?`, answer: p.answer, hint: `${tensResult}${onesResult}` },
+          ];
+        }
+
+        default:
+          return [{ prompt: `${p.a} ${p.op} ${p.b} = ?`, answer: p.answer, hint: '' }];
+      }
+    }
+
+    // ══════════════════════════════
+    // ── 수모형 블록 렌더링 ──
+    // ══════════════════════════════
+    function renderBlocks(problem, stepIdx) {
+      const area = document.getElementById('blocks-area');
+      area.innerHTML = '';
+
+      switch (problem.type) {
+        case 'simple-add':
+          renderSimpleBlocks(area, problem.a, 'green', problem.b, 'orange', '+');
+          break;
+        case 'simple-sub':
+          renderSubtractBlocks(area, problem.a, problem.b);
+          break;
+        case 'make-10-add':
+          renderTenFrame(area, problem.a, problem.b, stepIdx);
+          break;
+        case 'make-10-sub':
+          renderTenFrame(area, 10, -problem.b, stepIdx);
+          break;
+        case 'make-10-strategy':
+          renderMake10Strategy(area, problem, stepIdx);
+          break;
+        case 'two-digit-add':
+        case 'two-digit-sub':
+        case 'two-digit-carry':
+        case 'two-digit-borrow':
+          renderTwoDigitBlocks(area, problem, stepIdx);
+          break;
+      }
+    }
+
+    function createOneCube(color) {
+      const el = document.createElement('div');
+      el.className = 'block-one ' + (color || 'green');
+      return el;
+    }
+
+    function createTenBar(color) {
+      const bar = document.createElement('div');
+      bar.className = 'block-ten ' + (color || 'red');
+      for (let i = 0; i < 10; i++) {
+        const u = document.createElement('div');
+        u.className = 'unit';
+        bar.appendChild(u);
+      }
+      return bar;
+    }
+
+    function renderSimpleBlocks(area, a, colorA, b, colorB, op) {
+      const gA = document.createElement('div');
+      gA.className = 'block-group';
+      gA.innerHTML = `<div class="block-group-label">${a}</div>`;
+      const rowA = document.createElement('div');
+      rowA.className = 'block-row';
+      for (let i = 0; i < a; i++) rowA.appendChild(createOneCube(colorA));
+      gA.appendChild(rowA);
+
+      const opEl = document.createElement('div');
+      opEl.className = 'blocks-op';
+      opEl.textContent = op;
+
+      const gB = document.createElement('div');
+      gB.className = 'block-group';
+      gB.innerHTML = `<div class="block-group-label">${b}</div>`;
+      const rowB = document.createElement('div');
+      rowB.className = 'block-row';
+      for (let i = 0; i < b; i++) rowB.appendChild(createOneCube(colorB));
+      gB.appendChild(rowB);
+
+      area.appendChild(gA);
+      area.appendChild(opEl);
+      area.appendChild(gB);
+    }
+
+    function renderSubtractBlocks(area, a, b) {
+      const g = document.createElement('div');
+      g.className = 'block-group';
+      g.innerHTML = `<div class="block-group-label">${a}에서 ${b}개 빼기</div>`;
+      const row = document.createElement('div');
+      row.className = 'block-row';
+      for (let i = 0; i < a; i++) {
+        const cube = createOneCube(i < a - b ? 'green' : 'red');
+        if (i >= a - b) cube.classList.add('dim');
+        row.appendChild(cube);
+      }
+      g.appendChild(row);
+      area.appendChild(g);
+    }
+
+    function renderTenFrame(area, filled, change, stepIdx) {
+      const frame = document.createElement('div');
+      frame.className = 'ten-frame';
+      const total = change > 0 ? filled : filled + change;
+      const showFilled = change > 0 ? filled : 10;
+      const showRemove = change < 0 ? Math.abs(change) : 0;
+
+      for (let i = 0; i < 10; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'ten-frame-cell';
+        if (i < showFilled) {
+          cell.classList.add('filled');
+          const cube = createOneCube(i < showFilled - showRemove ? 'green' : 'red');
+          if (showRemove > 0 && i >= showFilled - showRemove) cube.classList.add('dim');
+          cell.appendChild(cube);
+        }
+        frame.appendChild(cell);
+      }
+
+      const g = document.createElement('div');
+      g.className = 'block-group';
+      if (change > 0) {
+        g.innerHTML = `<div class="block-group-label">10칸 채우기</div>`;
+      } else {
+        g.innerHTML = `<div class="block-group-label">10에서 빼기</div>`;
+      }
+      g.appendChild(frame);
+      area.appendChild(g);
+    }
+
+    function renderMake10Strategy(area, problem, stepIdx) {
+      const g = document.createElement('div');
+      g.className = 'block-group';
+
+      if (stepIdx === 0) {
+        // 두 수 보여주기 + 10프레임 빈칸
+        g.innerHTML = `<div class="block-group-label">${problem.a}에 몇을 더하면 10?</div>`;
+        const frame = document.createElement('div');
+        frame.className = 'ten-frame';
+        for (let i = 0; i < 10; i++) {
+          const cell = document.createElement('div');
+          cell.className = 'ten-frame-cell';
+          if (i < problem.a) {
+            cell.classList.add('filled');
+            cell.appendChild(createOneCube('green'));
+          }
+          frame.appendChild(cell);
+        }
+        g.appendChild(frame);
+        const bRow = document.createElement('div');
+        bRow.style.cssText = 'margin-top:8px; display:flex; gap:2px; justify-content:center;';
+        bRow.innerHTML = `<div class="block-group-label" style="width:100%">${problem.b}개 준비</div>`;
+        const bBlocks = document.createElement('div');
+        bBlocks.className = 'block-row';
+        bBlocks.style.justifyContent = 'center';
+        for (let i = 0; i < problem.b; i++) bBlocks.appendChild(createOneCube('orange'));
+        g.appendChild(bBlocks);
+      } else if (stepIdx === 1) {
+        // 10 만든 후 남은 것
+        g.innerHTML = `<div class="block-group-label">10을 만들었어요! 남은 것은?</div>`;
+        const frame = document.createElement('div');
+        frame.className = 'ten-frame';
+        for (let i = 0; i < 10; i++) {
+          const cell = document.createElement('div');
+          cell.className = 'ten-frame-cell filled';
+          cell.appendChild(createOneCube(i < problem.a ? 'green' : 'gold'));
+          frame.appendChild(cell);
+        }
+        g.appendChild(frame);
+        if (problem.remainder > 0) {
+          const remRow = document.createElement('div');
+          remRow.className = 'block-row';
+          remRow.style.cssText = 'margin-top:8px; justify-content:center;';
+          for (let i = 0; i < problem.remainder; i++) remRow.appendChild(createOneCube('orange'));
+          g.appendChild(remRow);
+          const label = document.createElement('div');
+          label.className = 'block-group-label';
+          label.textContent = `남은 ${problem.remainder}개`;
+          g.appendChild(label);
+        }
+      } else {
+        // 최종: 10 + 나머지
+        g.innerHTML = `<div class="block-group-label">10 + ${problem.remainder}</div>`;
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; align-items:center; gap:6px;';
+        row.appendChild(createTenBar('red'));
+        for (let i = 0; i < problem.remainder; i++) row.appendChild(createOneCube('orange'));
+        g.appendChild(row);
+      }
+
+      area.appendChild(g);
+    }
+
+    function renderTwoDigitBlocks(area, problem, stepIdx) {
+      const tA = Math.floor(problem.a / 10), oA = problem.a % 10;
+      const tB = Math.floor(problem.b / 10), oB = problem.b % 10;
+
+      // 첫 번째 수
+      const gA = document.createElement('div');
+      gA.className = 'block-group';
+      gA.innerHTML = `<div class="block-group-label">${problem.a}</div>`;
+      const rowsA = document.createElement('div');
+      rowsA.className = 'block-rows';
+      for (let i = 0; i < tA; i++) rowsA.appendChild(createTenBar('red'));
+      if (oA > 0) {
+        const oRow = document.createElement('div');
+        oRow.className = 'block-row';
+        for (let i = 0; i < oA; i++) oRow.appendChild(createOneCube('green'));
+        rowsA.appendChild(oRow);
+      }
+      gA.appendChild(rowsA);
+
+      // 연산자
+      const opEl = document.createElement('div');
+      opEl.className = 'blocks-op';
+      opEl.textContent = problem.op;
+
+      // 두 번째 수
+      const gB = document.createElement('div');
+      gB.className = 'block-group';
+      gB.innerHTML = `<div class="block-group-label">${problem.b}</div>`;
+      const rowsB = document.createElement('div');
+      rowsB.className = 'block-rows';
+      for (let i = 0; i < tB; i++) rowsB.appendChild(createTenBar('blue'));
+      if (oB > 0) {
+        const oRow = document.createElement('div');
+        oRow.className = 'block-row';
+        for (let i = 0; i < oB; i++) oRow.appendChild(createOneCube('orange'));
+        rowsB.appendChild(oRow);
+      }
+      gB.appendChild(rowsB);
+
+      area.appendChild(gA);
+      area.appendChild(opEl);
+      area.appendChild(gB);
+    }
+
+    // ══════════════════════════════
+    // ── 숫자 패드 ──
+    // ══════════════════════════════
+    function renderNumpad(maxAnswer) {
+      const area = document.getElementById('numpad-area');
+      area.innerHTML = '';
+      numpadValue = '';
+
+      if (maxAnswer <= 10) {
+        // 한 자리 (0~10): 한 줄 버튼
+        const row = document.createElement('div');
+        row.className = 'numpad-single';
+        const max = maxAnswer <= 9 ? 9 : 10;
+        for (let i = 0; i <= max; i++) {
+          const btn = document.createElement('button');
+          btn.className = 'numpad-btn';
+          btn.textContent = i;
+          btn.onclick = () => { getAudioCtx(); submitStepAnswer(i); };
+          row.appendChild(btn);
+        }
+        area.appendChild(row);
+      } else {
+        // 두 자리: 디스플레이 + 그리드
+        const display = document.createElement('div');
+        display.className = 'numpad-display';
+        display.id = 'numpad-display';
+        display.textContent = '';
+        area.appendChild(display);
+
+        const grid = document.createElement('div');
+        grid.className = 'numpad-grid';
+        for (let i = 1; i <= 9; i++) {
+          const btn = document.createElement('button');
+          btn.className = 'numpad-btn';
+          btn.textContent = i;
+          btn.onclick = () => numpadInput(String(i));
+          grid.appendChild(btn);
+        }
+        // 지우기
+        const btnDel = document.createElement('button');
+        btnDel.className = 'numpad-btn backspace';
+        btnDel.textContent = '←';
+        btnDel.onclick = () => numpadInput('del');
+        grid.appendChild(btnDel);
+        // 0
+        const btn0 = document.createElement('button');
+        btn0.className = 'numpad-btn';
+        btn0.textContent = '0';
+        btn0.onclick = () => numpadInput('0');
+        grid.appendChild(btn0);
+        // 확인
+        const btnEnter = document.createElement('button');
+        btnEnter.className = 'numpad-btn enter';
+        btnEnter.textContent = '확인';
+        btnEnter.onclick = () => numpadInput('enter');
+        grid.appendChild(btnEnter);
+
+        area.appendChild(grid);
+      }
+    }
+
+    function numpadInput(key) {
+      getAudioCtx();
+      if (key === 'del') {
+        numpadValue = numpadValue.slice(0, -1);
+      } else if (key === 'enter') {
+        if (numpadValue === '') return;
+        submitStepAnswer(parseInt(numpadValue));
+        return;
+      } else {
+        if (numpadValue.length >= 2) return;
+        numpadValue += key;
+      }
+      const display = document.getElementById('numpad-display');
+      if (display) display.textContent = numpadValue;
+    }
+
+    // ══════════════════════════════
+    // ── 게임 플로우 ──
+    // ══════════════════════════════
+    function startStage(stageId) {
+      getAudioCtx();
+      currentStageId = stageId;
+      currentProblemIdx = 0;
+      sessionStars = 0;
+      sessionCompleted = 0;
+      showScreen('screen-problem');
+      loadProblem();
+    }
+
+    function loadProblem() {
+      currentProblem = generateProblem(currentStageId);
+      currentSteps = buildSteps(currentProblem);
+      currentStepIdx = 0;
+      stepAttempts = 0;
+      problemStars = 3;
+      waitingNext = false;
+
+      document.getElementById('problem-counter').textContent = `${currentProblemIdx + 1} / ${PROBLEMS_PER_SET}`;
+      updateStarsDisplay();
+
+      // 문제 식 표시
+      const eq = document.getElementById('problem-equation');
+      if (currentProblem.type === 'make-10-add') {
+        eq.innerHTML = `${currentProblem.a} + <span class="eq-highlight">?</span> = 10`;
+      } else {
+        eq.innerHTML = `${currentProblem.a} ${currentProblem.op === '+' ? '＋' : '－'} ${currentProblem.b} = <span class="eq-highlight">?</span>`;
+      }
+
+      document.getElementById('btn-next-problem').style.display = 'none';
+      document.getElementById('step-hint').style.display = 'none';
+
+      renderBlocks(currentProblem, 0);
+      renderCurrentStep();
+    }
+
+    function renderCurrentStep() {
+      const step = currentSteps[currentStepIdx];
+      const prompt = document.getElementById('step-prompt');
+      prompt.innerHTML = escHtml(step.prompt).replace(/\n/g, '<br>');
+
+      document.getElementById('step-hint').style.display = 'none';
+
+      // 숫자패드 크기 결정
+      const maxAnswer = step.answer;
+      renderNumpad(maxAnswer < 10 ? 9 : 99);
+    }
+
+    function submitStepAnswer(value) {
+      if (waitingNext) return;
+      const step = currentSteps[currentStepIdx];
+
+      if (value === step.answer) {
+        // 정답!
+        stepAttempts = 0;
+        playStepSound();
+        showFeedback(true);
+
+        currentStepIdx++;
+        if (currentStepIdx >= currentSteps.length) {
+          // 문제 완료!
+          completeProblem();
+        } else {
+          // 다음 스텝
+          setTimeout(() => {
+            renderBlocks(currentProblem, currentStepIdx);
+            renderCurrentStep();
+          }, 600);
+        }
+      } else {
+        // 오답
+        stepAttempts++;
+        playWrongSound();
+        showFeedback(false);
+
+        if (stepAttempts === 1) {
+          problemStars = Math.min(problemStars, 2);
+        }
+        if (stepAttempts >= 2) {
+          problemStars = Math.min(problemStars, 1);
+          // 힌트 표시
+          const hintEl = document.getElementById('step-hint');
+          hintEl.className = 'step-hint';
+          hintEl.textContent = pick(ENCOURAGE_HINT) + ' ' + step.hint;
+          hintEl.style.display = 'block';
+        }
+        if (stepAttempts >= 3) {
+          // 답 보여주기
+          problemStars = 0;
+          const hintEl = document.getElementById('step-hint');
+          hintEl.textContent = `정답은 ${step.answer}이에요! 다음에 또 해봐요 💪`;
+          hintEl.style.display = 'block';
+          // 자동 진행
+          setTimeout(() => {
+            currentStepIdx++;
+            stepAttempts = 0;
+            if (currentStepIdx >= currentSteps.length) {
+              completeProblem();
+            } else {
+              renderBlocks(currentProblem, currentStepIdx);
+              renderCurrentStep();
+            }
+          }, 1500);
+        }
+
+        // 숫자패드 리셋
+        numpadValue = '';
+        const display = document.getElementById('numpad-display');
+        if (display) display.textContent = '';
+      }
+    }
+
+    function completeProblem() {
+      waitingNext = true;
+      sessionStars += problemStars;
+      sessionCompleted++;
+      currentProblemIdx++;
+
+      playCorrectSound();
+      updateStarsDisplay();
+
+      // 문제 식에 정답 표시
+      const eq = document.getElementById('problem-equation');
+      if (currentProblem.type === 'make-10-add') {
+        eq.innerHTML = `${currentProblem.a} + ${currentProblem.b} = <span class="eq-highlight">10</span>`;
+      } else {
+        eq.innerHTML = `${currentProblem.a} ${currentProblem.op === '+' ? '＋' : '－'} ${currentProblem.b} = <span class="eq-highlight">${currentProblem.answer}</span>`;
+      }
+
+      const prompt = document.getElementById('step-prompt');
+      prompt.innerHTML = `${pick(ENCOURAGE_CORRECT)}<br>${problemStars > 0 ? '⭐'.repeat(problemStars) : ''}`;
+
+      document.getElementById('numpad-area').innerHTML = '';
+      document.getElementById('step-hint').style.display = 'none';
+
+      if (currentProblemIdx >= PROBLEMS_PER_SET) {
+        // 세트 완료
+        setTimeout(() => completeStage(), 1000);
+      } else {
+        document.getElementById('btn-next-problem').style.display = 'block';
+      }
+    }
+
+    function nextProblem() {
+      document.getElementById('btn-next-problem').style.display = 'none';
+      loadProblem();
+    }
+
+    function completeStage() {
+      // 진행도 업데이트
+      const p = progress.stages[currentStageId];
+      p.completed = Math.max(p.completed, sessionCompleted);
+      p.stars = Math.max(p.stars, sessionStars);
+      checkUnlocks();
+      saveProgress();
+
+      playClearSound();
+      showScreen('screen-complete');
+
+      const emojis = ['🏆', '🎉', '🥳', '⭐', '👑', '🌟'];
+      document.getElementById('complete-emoji').textContent = pick(emojis);
+      document.getElementById('complete-title').textContent = `${STAGES[currentStageId - 1].title} 클리어!`;
+      document.getElementById('complete-subtitle').textContent = `${sessionCompleted}문제 완료!`;
+      document.getElementById('complete-stars').textContent = '⭐ ' + sessionStars + '개 획득!';
+
+      const nextBtn = document.getElementById('btn-next-stage');
+      if (currentStageId < 6 && progress.stages[currentStageId + 1] && progress.stages[currentStageId + 1].unlocked) {
+        nextBtn.style.display = 'inline-block';
+      } else {
+        nextBtn.style.display = 'none';
+      }
+    }
+
+    function backToStages() {
+      showScreen('screen-stages');
+      renderStageSelect();
+    }
+
+    function retryStage() {
+      startStage(currentStageId);
+    }
+
+    function goNextStage() {
+      if (currentStageId < 6) {
+        startStage(currentStageId + 1);
+      }
+    }
+
+    function updateStarsDisplay() {
+      document.getElementById('problem-stars').textContent = '⭐ ' + sessionStars;
+    }
+
+    // ══════════════════════════════
+    // ── 피드백 표시 ──
+    // ══════════════════════════════
+    function showFeedback(correct) {
+      const overlay = document.createElement('div');
+      overlay.className = 'feedback-overlay';
+      const msg = document.createElement('div');
+      msg.className = 'feedback-msg ' + (correct ? 'feedback-correct' : 'feedback-wrong');
+      msg.textContent = correct ? (currentStepIdx >= currentSteps.length ? pick(ENCOURAGE_CORRECT) : '맞았어요! 👍') : pick(ENCOURAGE_WRONG);
+      overlay.appendChild(msg);
+      document.body.appendChild(overlay);
+      setTimeout(() => overlay.remove(), 800);
+    }
+
+    // ══════════════════════════════
+    // ── 초기화 ──
+    // ══════════════════════════════
+    renderStageSelect();
+  </script>
+</body>
+</html>
