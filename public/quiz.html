@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>수학 퀴즈 대결</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #1a1a2e;
+      --card: #16213e;
+      --accent: #e94560;
+      --accent2: #0f3460;
+      --gold: #f5c518;
+      --text: #eee;
+      --green: #4ecca3;
+      --purple: #6c5ce7;
+    }
+
+    body {
+      font-family: 'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-x: hidden;
+    }
+
+    .screen { display: none; width: 100%; max-width: 500px; padding: 16px; }
+    .screen.active { display: flex; flex-direction: column; align-items: center; }
+
+    h1 { font-size: 1.8rem; margin: 16px 0 8px; text-align: center; }
+
+    input[type="text"] {
+      width: 100%; max-width: 320px; padding: 14px; margin: 8px 0;
+      border: 2px solid #333; border-radius: 12px; font-size: 1.1rem;
+      text-align: center; background: #0d1b2a; color: #fff; outline: none;
+    }
+    input[type="text"]:focus { border-color: var(--purple); }
+    input[type="text"]::placeholder { color: #666; }
+
+    .lobby-btn {
+      width: 100%; max-width: 320px; padding: 18px; margin: 8px 0;
+      border: none; border-radius: 16px; font-size: 1.2rem; font-weight: 700;
+      cursor: pointer; transition: transform 0.15s;
+    }
+    .lobby-btn:active { transform: scale(0.96); }
+    .btn-create { background: var(--purple); color: #fff; }
+    .btn-join { background: var(--accent2); color: #fff; }
+
+    .sub-text { color: #888; font-size: 0.85rem; margin: 4px 0; }
+    .info-text { color: #888; font-size: 0.95rem; margin: 8px 0; text-align: center; }
+
+    .back-btn {
+      background: none; border: 1px solid #555; color: #aaa;
+      padding: 8px 20px; border-radius: 8px; cursor: pointer; font-size: 0.9rem; margin: 8px 0;
+      text-decoration: none; display: inline-block; text-align: center;
+    }
+
+    /* 이모지 선택 */
+    .emoji-grid {
+      display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 8px 0;
+    }
+    .emoji-btn {
+      width: 48px; height: 48px; border-radius: 12px; border: 3px solid transparent;
+      font-size: 1.5rem; cursor: pointer; transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center; background: var(--card);
+    }
+    .emoji-btn.active { border-color: var(--gold); background: rgba(245,197,24,0.15); transform: scale(1.15); }
+
+    /* 설정 버튼 */
+    .opt-selector { display: flex; gap: 8px; justify-content: center; margin: 8px 0; }
+    .opt-btn {
+      padding: 10px 16px; border: 2px solid #333; border-radius: 10px;
+      background: var(--card); color: var(--text); font-size: 0.9rem; font-weight: 700;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .opt-btn.active { border-color: var(--purple); background: rgba(108,92,231,0.15); color: var(--purple); }
+
+    /* 대기실 */
+    .room-code {
+      font-size: 2.5rem; font-weight: 900; letter-spacing: 8px; color: var(--gold);
+      background: rgba(245,197,24,0.1); padding: 12px 32px; border-radius: 16px; margin: 12px 0;
+    }
+
+    .player-card {
+      display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+      background: var(--card); border-radius: 12px; margin: 4px 0;
+      width: 100%; max-width: 320px;
+    }
+    .player-card .p-emoji { font-size: 1.6rem; }
+    .player-card .p-name { font-size: 1.1rem; font-weight: 700; flex: 1; }
+    .player-card .p-host { font-size: 0.75rem; color: var(--gold); background: rgba(245,197,24,0.15); padding: 2px 8px; border-radius: 8px; }
+
+    .btn-start {
+      margin-top: 16px; padding: 16px 48px; background: var(--green); color: #000;
+      font-weight: 800; font-size: 1.2rem; border: none; border-radius: 14px; cursor: pointer;
+    }
+
+    /* 카운트다운 */
+    .countdown {
+      font-size: 5rem; font-weight: 900; color: var(--accent);
+      animation: cdPulse 0.5s infinite;
+    }
+    @keyframes cdPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.3); } }
+
+    /* 게임 화면 */
+    .scoreboard { display: flex; gap: 8px; justify-content: center; margin: 8px 0; flex-wrap: wrap; }
+    .score-item {
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      padding: 8px 12px; border-radius: 12px; background: var(--card); min-width: 70px;
+    }
+    .score-item.me { border: 2px solid var(--gold); }
+    .score-emoji { font-size: 1.3rem; }
+    .score-name { font-size: 0.75rem; color: #aaa; }
+    .score-pts { font-size: 1.3rem; font-weight: 900; color: var(--gold); }
+
+    .round-indicator {
+      text-align: center; font-size: 0.9rem; font-weight: 700; color: #888;
+      background: rgba(255,255,255,0.05); padding: 6px 16px; border-radius: 20px; margin: 8px 0;
+    }
+
+    .problem-box {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      padding: 24px; background: rgba(108,92,231,0.1); border-radius: 20px; margin: 16px 0;
+    }
+    .problem-num { font-size: 2.8rem; font-weight: 900; }
+    .problem-op { font-size: 2.2rem; font-weight: 700; color: var(--purple); }
+
+    .choices-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; width: 100%; max-width: 320px; }
+    .choice-btn {
+      padding: 20px; border: none; border-radius: 16px; font-size: 1.8rem; font-weight: 800;
+      cursor: pointer; transition: all 0.15s; color: #fff;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+    }
+    .choice-btn:active { transform: scale(0.93); }
+    .choice-btn:disabled { cursor: default; opacity: 0.5; }
+    .choice-btn.correct { background: var(--green) !important; opacity: 1 !important; }
+    .choice-btn.wrong { background: var(--accent) !important; opacity: 1 !important; }
+
+    /* 라운드 결과 */
+    .result-box {
+      padding: 20px; background: rgba(108,92,231,0.1); border-radius: 20px; margin: 16px 0;
+      text-align: center; width: 100%; max-width: 360px;
+    }
+    .result-answer { font-size: 1.4rem; margin-bottom: 12px; }
+    .result-winner { font-size: 2.5rem; margin-bottom: 4px; }
+    .result-winner-name { font-size: 1.2rem; font-weight: 700; }
+    .result-player-answer {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 6px 0; font-size: 1rem;
+    }
+
+    /* 최종 결과 */
+    .final-card {
+      display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+      border-radius: 16px; margin-bottom: 8px; width: 100%; max-width: 360px;
+    }
+    .final-card.winner { background: rgba(245,197,24,0.15); border: 2px solid var(--gold); transform: scale(1.03); }
+    .final-card:not(.winner) { background: var(--card); }
+    .final-medal { font-size: 1.5rem; }
+    .final-emoji { font-size: 1.8rem; }
+    .final-info { flex: 1; }
+    .final-name { font-weight: 700; font-size: 1.1rem; }
+    .final-detail { color: #888; font-size: 0.85rem; }
+    .final-score { font-weight: 900; font-size: 1.8rem; }
+
+    .btn-primary {
+      width: 100%; max-width: 320px; padding: 16px; background: var(--purple); color: #fff;
+      border: none; border-radius: 14px; font-size: 1.1rem; font-weight: 800;
+      cursor: pointer; margin-top: 16px;
+    }
+
+    /* 토스트 */
+    .toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: var(--accent); color: #fff; padding: 12px 24px; border-radius: 12px;
+      font-weight: 600; z-index: 200;
+      animation: toastIn 0.3s, toastOut 0.3s 2s forwards;
+    }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(20px); } }
+    @keyframes toastOut { to { opacity: 0; transform: translateX(-50%) translateY(20px); } }
+
+    /* 꽃가루 */
+    @keyframes confettiFall {
+      0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+    }
+
+    @media (max-width: 360px) {
+      .problem-num { font-size: 2rem; }
+      .choice-btn { font-size: 1.4rem; padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 로비 -->
+  <div id="screen-lobby" class="screen active">
+    <h1>🧮 수학 퀴즈 대결</h1>
+    <p class="sub-text">가족과 함께 덧셈 뺄셈 속도 대결!</p>
+
+    <input type="text" id="input-name" placeholder="이름을 입력하세요" maxlength="8">
+
+    <p style="color:#aaa; font-size:0.9rem; margin-top:8px;">캐릭터 선택</p>
+    <div class="emoji-grid" id="emoji-grid"></div>
+
+    <button class="lobby-btn btn-create" onclick="createRoom()">🎮 방 만들기</button>
+
+    <div style="display:flex; gap:8px; width:100%; max-width:320px; align-items:center; margin:4px 0;">
+      <input type="text" id="input-code" placeholder="방 코드" maxlength="4"
+             style="flex:1; text-transform:uppercase; letter-spacing:4px; font-weight:700;">
+      <button class="lobby-btn btn-join" onclick="joinRoom()"
+              style="width:auto; flex:0 0 auto; padding:14px 24px;">참가</button>
+    </div>
+    <a href="/" class="back-btn">🏠 홈으로</a>
+  </div>
+
+  <!-- 대기실 -->
+  <div id="screen-waiting" class="screen">
+    <h1>🧮 대기실</h1>
+    <p class="info-text">아래 코드를 다른 기기에서 입력하세요!</p>
+    <div class="room-code" id="display-code">----</div>
+
+    <!-- 난이도 선택 -->
+    <div id="difficulty-host" style="display:none; margin:8px 0; text-align:center;">
+      <p style="color:#aaa; font-size:0.9rem; margin-bottom:6px;">난이도</p>
+      <div class="opt-selector">
+        <button class="opt-btn active" data-diff="easy" onclick="setDifficulty('easy')">쉬움<br><span style="font-size:0.7rem;color:#888">1~10 덧셈</span></button>
+        <button class="opt-btn" data-diff="normal" onclick="setDifficulty('normal')">보통<br><span style="font-size:0.7rem;color:#888">1~20 덧뺄셈</span></button>
+        <button class="opt-btn" data-diff="hard" onclick="setDifficulty('hard')">어려움<br><span style="font-size:0.7rem;color:#888">1~50 덧뺄셈</span></button>
+      </div>
+    </div>
+
+    <!-- 라운드 수 -->
+    <div id="rounds-host" style="display:none; margin:8px 0; text-align:center;">
+      <p style="color:#aaa; font-size:0.9rem; margin-bottom:6px;">라운드 수</p>
+      <div class="opt-selector">
+        <button class="opt-btn" data-rounds="5" onclick="setRounds(5)">5판</button>
+        <button class="opt-btn active" data-rounds="10" onclick="setRounds(10)">10판</button>
+        <button class="opt-btn" data-rounds="15" onclick="setRounds(15)">15판</button>
+        <button class="opt-btn" data-rounds="20" onclick="setRounds(20)">20판</button>
+      </div>
+    </div>
+
+    <!-- 설정 표시 (비방장) -->
+    <p id="settings-guest" class="info-text" style="display:none;"></p>
+
+    <div id="player-list" style="width:100%; max-width:320px;"></div>
+
+    <button class="btn-start" id="btn-start" style="display:none" onclick="startGame()">게임 시작! 🚀</button>
+    <p class="info-text" id="waiting-msg">방장이 게임을 시작할 때까지 기다려주세요...</p>
+    <button class="back-btn" onclick="leaveRoom()">나가기</button>
+    <a href="/" class="back-btn" style="margin-top:4px;">🏠 홈으로</a>
+  </div>
+
+  <!-- 카운트다운 -->
+  <div id="screen-countdown" class="screen">
+    <div style="text-align:center; padding:60px 0;">
+      <div class="countdown" id="countdown-num">3</div>
+      <p style="font-size:1.2rem; color:#888; margin-top:16px;">게임 시작!</p>
+    </div>
+  </div>
+
+  <!-- 게임 화면 -->
+  <div id="screen-game" class="screen">
+    <div class="scoreboard" id="scoreboard"></div>
+    <div class="round-indicator" id="round-indicator">1 / 10 라운드</div>
+
+    <!-- 문제 -->
+    <div id="problem-area" style="width:100%; display:flex; flex-direction:column; align-items:center;">
+      <div class="problem-box" id="problem-box"></div>
+      <div class="choices-grid" id="choices-grid"></div>
+      <p id="waiting-answer" style="display:none; color:#888; margin-top:12px;">다른 플레이어를 기다리는 중...</p>
+    </div>
+
+    <!-- 라운드 결과 -->
+    <div id="round-result" style="display:none; width:100%; display:none; flex-direction:column; align-items:center;">
+      <div class="result-box" id="result-box"></div>
+      <button class="btn-primary" id="btn-next" style="display:none;" onclick="nextRound()">다음 문제 ➡️</button>
+      <p id="waiting-next" class="info-text" style="display:none;">방장이 다음 문제를 내면 시작돼요...</p>
+    </div>
+  </div>
+
+  <!-- 최종 결과 -->
+  <div id="screen-result" class="screen">
+    <h1 style="font-size:3rem; margin-bottom:0;">🏆</h1>
+    <h1>게임 결과!</h1>
+    <div id="final-list" style="width:100%; max-width:360px; margin-top:16px;"></div>
+    <button class="btn-primary" id="btn-play-again" style="display:none;" onclick="playAgain()">🔄 다시 하기</button>
+    <a href="/" class="back-btn" style="margin-top:8px;">🏠 홈으로</a>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    const EMOJIS = ['🦁','🐯','🐻','🐼','🦊','🐸','🐵','🐰','🐶','🐱'];
+    const CHOICE_COLORS = ['#e94560','#4ecca3','#f5c518','#6c5ce7'];
+    const DIFF_LABELS = { easy: '쉬움 (1~10)', normal: '보통 (1~20)', hard: '어려움 (1~50)' };
+
+    let playerId = localStorage.getItem('quiz-player-id') || null;
+    let savedRoomCode = localStorage.getItem('quiz-room-code') || null;
+    let savedPlayerName = localStorage.getItem('quiz-player-name') || null;
+    let selectedEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+    let isHost = false;
+    let gameActive = false;
+    let myAnswer = null;
+    let currentPlayers = [];
+    let totalRounds = 10;
+
+    // 이모지 그리드 생성
+    const emojiGrid = document.getElementById('emoji-grid');
+    EMOJIS.forEach(e => {
+      const btn = document.createElement('button');
+      btn.className = 'emoji-btn' + (e === selectedEmoji ? ' active' : '');
+      btn.textContent = e;
+      btn.onclick = () => {
+        selectedEmoji = e;
+        document.querySelectorAll('.emoji-btn').forEach(b => b.classList.toggle('active', b.textContent === e));
+      };
+      emojiGrid.appendChild(btn);
+    });
+
+    // Web Audio
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+    function getAudioCtx() {
+      if (!audioCtx) audioCtx = new AudioCtx();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    }
+    function playCorrect() {
+      const ctx = getAudioCtx(); const t = ctx.currentTime;
+      [523,659,784].forEach((f,i) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination); o.type='sine';
+        o.frequency.setValueAtTime(f, t+i*0.1);
+        g.gain.setValueAtTime(0.25, t+i*0.1);
+        g.gain.exponentialRampToValueAtTime(0.01, t+i*0.1+0.2);
+        o.start(t+i*0.1); o.stop(t+i*0.1+0.2);
+      });
+    }
+    function playWrong() {
+      const ctx = getAudioCtx(); const t = ctx.currentTime;
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination); o.type='square';
+      o.frequency.setValueAtTime(200, t);
+      g.gain.setValueAtTime(0.15, t);
+      g.gain.exponentialRampToValueAtTime(0.01, t+0.3);
+      o.start(t); o.stop(t+0.3);
+    }
+    function playFanfare() {
+      const ctx = getAudioCtx(); const t = ctx.currentTime;
+      [[523,659,784],[587,740,880],[523,659,784,1047]].forEach((chord,ci) => {
+        chord.forEach(f => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination); o.type='sine';
+          o.frequency.setValueAtTime(f, t+ci*0.3);
+          g.gain.setValueAtTime(0.15, t+ci*0.3);
+          g.gain.exponentialRampToValueAtTime(0.01, t+ci*0.3+0.5);
+          o.start(t+ci*0.3); o.stop(t+ci*0.3+0.5);
+        });
+      });
+    }
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    function showToast(msg) {
+      const t = document.createElement('div');
+      t.className = 'toast'; t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2500);
+    }
+
+    function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    // 로비 함수
+    function createRoom() {
+      const name = document.getElementById('input-name').value.trim();
+      if (!name) { showToast('이름을 입력해주세요!'); return; }
+      getAudioCtx(); isHost = true;
+      socket.emit('quiz:create-room', { playerName: name, playerId, emoji: selectedEmoji });
+    }
+
+    function joinRoom() {
+      const name = document.getElementById('input-name').value.trim();
+      const code = document.getElementById('input-code').value.trim().toUpperCase();
+      if (!name) { showToast('이름을 입력해주세요!'); return; }
+      if (!code || code.length < 4) { showToast('방 코드를 입력해주세요!'); return; }
+      getAudioCtx();
+      socket.emit('quiz:join-room', { code, playerName: name, playerId, emoji: selectedEmoji });
+    }
+
+    function leaveRoom() { localStorage.removeItem('quiz-room-code'); location.reload(); }
+    function startGame() { socket.emit('quiz:start-game'); }
+    function setDifficulty(d) { socket.emit('quiz:set-difficulty', d); }
+    function setRounds(r) { socket.emit('quiz:set-rounds', r); }
+    function nextRound() { socket.emit('quiz:next-round'); }
+    function playAgain() { socket.emit('quiz:play-again'); }
+
+    function submitAnswer(choice) {
+      if (myAnswer !== null) return;
+      myAnswer = choice;
+      socket.emit('quiz:submit-answer', choice);
+      document.getElementById('waiting-answer').style.display = 'block';
+      // 버튼 비활성화
+      document.querySelectorAll('.choice-btn').forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
+      // 선택한 버튼 강조
+      document.querySelectorAll('.choice-btn').forEach(b => {
+        if (parseInt(b.dataset.choice) === choice) { b.style.opacity = '1'; b.style.transform = 'scale(0.95)'; }
+      });
+    }
+
+    // Socket 이벤트
+    socket.on('quiz:room-created', ({ code, playerName, playerId: pid }) => {
+      playerId = pid;
+      localStorage.setItem('quiz-player-id', pid);
+      localStorage.setItem('quiz-room-code', code);
+      localStorage.setItem('quiz-player-name', playerName);
+      isHost = true;
+      document.getElementById('display-code').textContent = code;
+      showScreen('screen-waiting');
+    });
+
+    socket.on('quiz:room-joined', ({ code, playerName, playerId: pid, isHost: host }) => {
+      playerId = pid;
+      localStorage.setItem('quiz-player-id', pid);
+      localStorage.setItem('quiz-room-code', code);
+      localStorage.setItem('quiz-player-name', playerName);
+      isHost = host;
+      document.getElementById('display-code').textContent = code;
+      showScreen('screen-waiting');
+    });
+
+    socket.on('quiz:player-list', ({ players, code, difficulty, totalRounds: tr }) => {
+      totalRounds = tr;
+      const list = document.getElementById('player-list');
+      list.innerHTML = '';
+      let connectedCount = 0;
+      players.forEach(p => {
+        if (p.connected) connectedCount++;
+        list.innerHTML += `<div class="player-card" style="opacity:${p.connected ? 1 : 0.4}">
+          <span class="p-emoji">${p.emoji}</span>
+          <span class="p-name">${escHtml(p.name)}</span>
+          ${p.isHost ? '<span class="p-host">👑 방장</span>' : ''}
+          ${!p.connected ? '<span style="color:#888;font-size:0.8rem">(끊김)</span>' : ''}
+        </div>`;
+      });
+
+      if (isHost) {
+        document.getElementById('difficulty-host').style.display = 'block';
+        document.getElementById('rounds-host').style.display = 'block';
+        document.getElementById('settings-guest').style.display = 'none';
+        document.querySelectorAll('[data-diff]').forEach(b => b.classList.toggle('active', b.dataset.diff === difficulty));
+        document.querySelectorAll('[data-rounds]').forEach(b => b.classList.toggle('active', parseInt(b.dataset.rounds) === tr));
+      } else {
+        document.getElementById('difficulty-host').style.display = 'none';
+        document.getElementById('rounds-host').style.display = 'none';
+        document.getElementById('settings-guest').style.display = 'block';
+        document.getElementById('settings-guest').textContent = `난이도: ${DIFF_LABELS[difficulty] || difficulty} | ${tr}라운드`;
+      }
+
+      const btnStart = document.getElementById('btn-start');
+      const waitMsg = document.getElementById('waiting-msg');
+      if (isHost && connectedCount >= 2) { btnStart.style.display = 'block'; waitMsg.style.display = 'none'; }
+      else if (isHost) { btnStart.style.display = 'none'; waitMsg.textContent = '다른 플레이어를 기다리는 중...'; waitMsg.style.display = 'block'; }
+      else { btnStart.style.display = 'none'; waitMsg.textContent = '방장이 게임을 시작할 때까지 기다려주세요...'; waitMsg.style.display = 'block'; }
+    });
+
+    socket.on('quiz:difficulty-updated', (d) => {
+      document.querySelectorAll('[data-diff]').forEach(b => b.classList.toggle('active', b.dataset.diff === d));
+      showToast(`난이도가 ${DIFF_LABELS[d]}로 변경되었어요!`);
+    });
+
+    socket.on('quiz:rounds-updated', (r) => {
+      totalRounds = r;
+      document.querySelectorAll('[data-rounds]').forEach(b => b.classList.toggle('active', parseInt(b.dataset.rounds) === r));
+      showToast(`${r}라운드로 변경되었어요!`);
+    });
+
+    socket.on('quiz:countdown', (num) => {
+      showScreen('screen-countdown');
+      document.getElementById('countdown-num').textContent = num;
+    });
+
+    socket.on('quiz:game-started', (data) => {
+      gameActive = true;
+      currentPlayers = data.players;
+      totalRounds = data.totalRounds;
+      myAnswer = null;
+      showScreen('screen-game');
+      renderScoreboard(data.players);
+      renderProblem(data.problem, data.currentRound, data.totalRounds);
+    });
+
+    socket.on('quiz:next-problem', (data) => {
+      myAnswer = null;
+      currentPlayers = data.players;
+      renderScoreboard(data.players);
+      renderProblem(data.problem, data.currentRound, totalRounds);
+      document.getElementById('problem-area').style.display = 'flex';
+      document.getElementById('round-result').style.display = 'none';
+      document.getElementById('waiting-answer').style.display = 'none';
+    });
+
+    socket.on('quiz:round-result', (data) => {
+      currentPlayers = data.players;
+      renderScoreboard(data.players);
+      document.getElementById('round-indicator').textContent = `${data.currentRound} / ${data.totalRounds} 라운드`;
+
+      // 결과 표시
+      document.getElementById('problem-area').style.display = 'none';
+      const resultDiv = document.getElementById('round-result');
+      resultDiv.style.display = 'flex';
+
+      const prob = data.problem;
+      const opSymbol = prob.op === '+' ? '＋' : '－';
+      let resultHtml = `<div class="result-answer">${prob.a} ${opSymbol} ${prob.b} ＝ <span style="font-weight:900;color:var(--green)">${prob.answer}</span></div>`;
+
+      if (data.roundWinner) {
+        resultHtml += `<div class="result-winner">${data.roundWinner.emoji}</div>`;
+        resultHtml += `<div class="result-winner-name">${escHtml(data.roundWinner.name)} 정답! 🎉</div>`;
+        playCorrect();
+      } else {
+        resultHtml += `<div style="font-size:1.2rem;font-weight:700;color:var(--accent);margin:12px 0;">아무도 못 맞췄어요! 😅</div>`;
+      }
+
+      // 각 플레이어 답변
+      resultHtml += '<div style="margin-top:12px;">';
+      for (const [pid, ans] of Object.entries(data.answers)) {
+        const icon = ans.correct ? '✅' : '❌';
+        const color = ans.correct ? 'var(--green)' : 'var(--accent)';
+        resultHtml += `<div class="result-player-answer"><span>${escHtml(ans.name)}:</span> <span style="font-weight:700;color:${color}">${ans.choice} ${icon}</span></div>`;
+      }
+      resultHtml += '</div>';
+
+      document.getElementById('result-box').innerHTML = resultHtml;
+
+      // 다음 버튼
+      if (isHost) {
+        const btnNext = document.getElementById('btn-next');
+        btnNext.style.display = 'block';
+        btnNext.textContent = data.currentRound >= data.totalRounds ? '🏆 결과 보기' : '다음 문제 ➡️';
+        document.getElementById('waiting-next').style.display = 'none';
+      } else {
+        document.getElementById('btn-next').style.display = 'none';
+        document.getElementById('waiting-next').style.display = 'block';
+      }
+    });
+
+    socket.on('quiz:game-finished', (data) => {
+      gameActive = false;
+      playFanfare();
+      showScreen('screen-result');
+
+      const list = document.getElementById('final-list');
+      list.innerHTML = '';
+      const medals = ['🥇','🥈','🥉'];
+      data.players.forEach((p, i) => {
+        const isWinner = i === 0;
+        list.innerHTML += `<div class="final-card ${isWinner ? 'winner' : ''}">
+          <span class="final-medal">${medals[i] || ''}</span>
+          <span class="final-emoji">${p.emoji}</span>
+          <div class="final-info">
+            <div class="final-name">${escHtml(p.name)}</div>
+            <div class="final-detail">${p.score} / ${totalRounds} 정답</div>
+          </div>
+          <div class="final-score" style="color:${isWinner ? 'var(--gold)' : '#888'}">${p.score}</div>
+        </div>`;
+      });
+
+      document.getElementById('btn-play-again').style.display = (data.isHost || isHost) ? 'block' : 'none';
+    });
+
+    socket.on('quiz:game-reset', () => {
+      gameActive = false; myAnswer = null;
+      showScreen('screen-waiting');
+    });
+
+    socket.on('quiz:game-restored', (data) => {
+      isHost = data.isHost;
+      currentPlayers = data.players;
+      gameActive = true;
+      showScreen('screen-game');
+      renderScoreboard(data.players);
+
+      if (data.status === 'playing') {
+        myAnswer = data.myAnswer ? data.myAnswer.choice : null;
+        renderProblem(data.currentProblem, data.currentRound, data.totalRounds);
+        document.getElementById('problem-area').style.display = 'flex';
+        document.getElementById('round-result').style.display = 'none';
+        if (myAnswer !== null) document.getElementById('waiting-answer').style.display = 'block';
+      } else if (data.status === 'roundResult') {
+        // 라운드 결과 상태로 복원 - 다음 문제 대기
+        document.getElementById('problem-area').style.display = 'none';
+        document.getElementById('round-result').style.display = 'flex';
+        document.getElementById('result-box').innerHTML = '<p style="color:#888">라운드 결과를 기다리는 중...</p>';
+        if (isHost) { document.getElementById('btn-next').style.display = 'block'; document.getElementById('waiting-next').style.display = 'none'; }
+        else { document.getElementById('btn-next').style.display = 'none'; document.getElementById('waiting-next').style.display = 'block'; }
+      }
+      showToast('게임에 다시 접속했어요!');
+    });
+
+    socket.on('quiz:player-disconnected', ({ name }) => { showToast(`${name} 님의 연결이 끊겼어요`); });
+    socket.on('quiz:error-msg', (msg) => { showToast(msg); });
+
+    // 렌더링
+    function renderScoreboard(players) {
+      const el = document.getElementById('scoreboard');
+      el.innerHTML = '';
+      players.forEach(p => {
+        el.innerHTML += `<div class="score-item">
+          <span class="score-emoji">${p.emoji}</span>
+          <span class="score-name">${escHtml(p.name)}</span>
+          <span class="score-pts">${p.score}</span>
+        </div>`;
+      });
+    }
+
+    function renderProblem(problem, round, total) {
+      document.getElementById('round-indicator').textContent = `${round} / ${total} 라운드`;
+      const opSymbol = problem.op === '+' ? '＋' : '－';
+      document.getElementById('problem-box').innerHTML =
+        `<span class="problem-num">${problem.a}</span>
+         <span class="problem-op">${opSymbol}</span>
+         <span class="problem-num">${problem.b}</span>
+         <span class="problem-op">＝</span>
+         <span class="problem-num">?</span>`;
+
+      const grid = document.getElementById('choices-grid');
+      grid.innerHTML = '';
+      problem.choices.forEach((c, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'choice-btn';
+        btn.style.background = CHOICE_COLORS[i % CHOICE_COLORS.length];
+        btn.textContent = c;
+        btn.dataset.choice = c;
+        btn.onclick = () => submitAnswer(c);
+        if (myAnswer !== null) {
+          btn.disabled = true;
+          btn.style.opacity = '0.5';
+          if (c === myAnswer) { btn.style.opacity = '1'; btn.style.transform = 'scale(0.95)'; }
+        }
+        grid.appendChild(btn);
+      });
+
+      document.getElementById('waiting-answer').style.display = myAnswer !== null ? 'block' : 'none';
+    }
+
+    // 자동 재접속
+    window.addEventListener('load', () => {
+      if (playerId && savedRoomCode && savedPlayerName) {
+        getAudioCtx();
+        socket.emit('quiz:join-room', {
+          code: savedRoomCode, playerName: savedPlayerName, playerId, emoji: selectedEmoji,
+        });
+      }
+    });
+
+    // 새로고침 방지
+    document.addEventListener('keydown', (e) => {
+      if ((e.key === 'F5' || (e.ctrlKey && (e.key === 'r' || e.key === 'R'))) && gameActive) {
+        e.preventDefault(); showToast('게임 중에는 새로고침할 수 없어요!');
+      }
+    });
+    window.addEventListener('beforeunload', (e) => { if (gameActive) { e.preventDefault(); e.returnValue = ''; } });
+
+    // 엔터키
+    document.getElementById('input-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') joinRoom(); });
+    document.getElementById('input-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('input-code').focus(); });
+  </script>
+</body>
+</html>

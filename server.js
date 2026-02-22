@@ -45,8 +45,9 @@ function saveStats() {
 }
 
 // ── 게임 상태 저장소 ──
-const rooms = new Map();
-const playerSessions = new Map(); // playerId -> { roomCode, socketId }
+const rooms = new Map();           // 빙고 방
+const quizRooms = new Map();       // 퀴즈 방
+const playerSessions = new Map();  // playerId -> { roomCode, socketId, type }
 
 function generatePlayerId() {
   return crypto.randomUUID();
@@ -58,8 +59,63 @@ function generateRoomCode() {
   do {
     code = '';
     for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  } while (rooms.has(code));
+  } while (rooms.has(code) || quizRooms.has(code));
   return code;
+}
+
+// ── 퀴즈 헬퍼 함수 ──
+const QUIZ_DIFFICULTIES = {
+  easy: { min: 1, max: 10, ops: ['+'] },
+  normal: { min: 1, max: 20, ops: ['+', '-'] },
+  hard: { min: 1, max: 50, ops: ['+', '-'] },
+};
+
+function generateQuizProblem(difficulty) {
+  const config = QUIZ_DIFFICULTIES[difficulty] || QUIZ_DIFFICULTIES.easy;
+  const op = config.ops[Math.floor(Math.random() * config.ops.length)];
+  let a, b, answer;
+  if (op === '+') {
+    a = Math.floor(Math.random() * config.max) + config.min;
+    b = Math.floor(Math.random() * config.max) + config.min;
+    answer = a + b;
+  } else {
+    a = Math.floor(Math.random() * config.max) + config.min;
+    b = Math.floor(Math.random() * a) + 1;
+    answer = a - b;
+  }
+  const choices = generateQuizChoices(answer);
+  return { a, b, op, answer, choices, id: crypto.randomUUID().slice(0, 8) };
+}
+
+function generateQuizChoices(answer) {
+  const choices = new Set([answer]);
+  while (choices.size < 4) {
+    const offset = Math.floor(Math.random() * 10) + 1;
+    const wrong = answer + (Math.random() > 0.5 ? offset : -offset);
+    if (wrong >= 0 && wrong !== answer) {
+      choices.add(wrong);
+    }
+  }
+  return [...choices].sort(() => Math.random() - 0.5);
+}
+
+function emitQuizPlayerList(room) {
+  const players = [];
+  for (const [pid, p] of room.players) {
+    players.push({
+      name: p.name,
+      emoji: p.emoji,
+      score: p.score,
+      isHost: pid === room.host,
+      connected: p.connected,
+    });
+  }
+  io.to('quiz:' + room.code).emit('quiz:player-list', {
+    players,
+    code: room.code,
+    difficulty: room.difficulty,
+    totalRounds: room.totalRounds,
+  });
 }
 
 function generateBoard(numberRange) {
@@ -541,11 +597,308 @@ io.on('connection', (socket) => {
     io.to(code).emit('player-disconnected', { name: player.name });
     emitPlayerList(room);
   });
+
+  // ════════════════════════════════════════
+  // ── 수학 퀴즈 Socket.IO 이벤트 ──
+  // ════════════════════════════════════════
+
+  socket.on('quiz:create-room', ({ playerName, playerId, emoji }) => {
+    if (!playerId) playerId = generatePlayerId();
+    const code = generateRoomCode();
+    const room = {
+      code,
+      host: playerId,
+      players: new Map(),
+      difficulty: 'easy',
+      totalRounds: 10,
+      currentProblem: null,
+      currentRound: 0,
+      answers: {},
+      status: 'waiting',
+      roundWinner: null,
+    };
+
+    room.players.set(playerId, {
+      name: playerName,
+      emoji: emoji || '🦁',
+      score: 0,
+      socketId: socket.id,
+      connected: true,
+    });
+
+    quizRooms.set(code, room);
+    socket.join('quiz:' + code);
+    socket.playerId = playerId;
+    socket.quizRoomCode = code;
+    playerSessions.set(playerId, { roomCode: code, socketId: socket.id, type: 'quiz' });
+
+    socket.emit('quiz:room-created', { code, playerName, playerId });
+    emitQuizPlayerList(room);
+  });
+
+  socket.on('quiz:join-room', ({ code, playerName, playerId, emoji }) => {
+    const room = quizRooms.get(code);
+    if (!room) {
+      socket.emit('quiz:error-msg', '방을 찾을 수 없어요!');
+      return;
+    }
+
+    // 재접속
+    if (playerId && room.players.has(playerId)) {
+      const player = room.players.get(playerId);
+      player.socketId = socket.id;
+      player.connected = true;
+      socket.join('quiz:' + code);
+      socket.playerId = playerId;
+      socket.quizRoomCode = code;
+      playerSessions.set(playerId, { roomCode: code, socketId: socket.id, type: 'quiz' });
+
+      const isHost = room.host === playerId;
+
+      if (room.status === 'playing' || room.status === 'roundResult') {
+        socket.emit('quiz:game-restored', {
+          status: room.status,
+          difficulty: room.difficulty,
+          totalRounds: room.totalRounds,
+          currentRound: room.currentRound,
+          currentProblem: room.currentProblem,
+          myAnswer: room.answers[playerId] || null,
+          roundWinner: room.roundWinner,
+          players: [...room.players.values()].map(p => ({
+            name: p.name, emoji: p.emoji, score: p.score, connected: p.connected,
+          })),
+          isHost,
+          playerId,
+        });
+      } else if (room.status === 'finished') {
+        socket.emit('quiz:game-finished', {
+          players: [...room.players.values()]
+            .map(p => ({ name: p.name, emoji: p.emoji, score: p.score }))
+            .sort((a, b) => b.score - a.score),
+          isHost,
+          playerId,
+        });
+      } else {
+        socket.emit('quiz:room-joined', { code, playerName: player.name, playerId, isHost });
+        emitQuizPlayerList(room);
+      }
+      return;
+    }
+
+    // 새 참가
+    if (room.status !== 'waiting') {
+      socket.emit('quiz:error-msg', '이미 게임이 시작되었어요!');
+      return;
+    }
+    const connectedCount = [...room.players.values()].filter(p => p.connected).length;
+    if (connectedCount >= 4) {
+      socket.emit('quiz:error-msg', '방이 가득 찼어요! (최대 4명)');
+      return;
+    }
+
+    if (!playerId) playerId = generatePlayerId();
+
+    room.players.set(playerId, {
+      name: playerName,
+      emoji: emoji || '🦁',
+      score: 0,
+      socketId: socket.id,
+      connected: true,
+    });
+
+    if (!room.host) room.host = playerId;
+
+    socket.join('quiz:' + code);
+    socket.playerId = playerId;
+    socket.quizRoomCode = code;
+    playerSessions.set(playerId, { roomCode: code, socketId: socket.id, type: 'quiz' });
+
+    const isHost = room.host === playerId;
+    socket.emit('quiz:room-joined', { code, playerName, playerId, isHost });
+    emitQuizPlayerList(room);
+  });
+
+  socket.on('quiz:set-difficulty', (difficulty) => {
+    const room = quizRooms.get(socket.quizRoomCode);
+    if (!room || room.host !== socket.playerId) return;
+    if (!['easy', 'normal', 'hard'].includes(difficulty)) return;
+    room.difficulty = difficulty;
+    io.to('quiz:' + room.code).emit('quiz:difficulty-updated', difficulty);
+  });
+
+  socket.on('quiz:set-rounds', (rounds) => {
+    const room = quizRooms.get(socket.quizRoomCode);
+    if (!room || room.host !== socket.playerId) return;
+    if (![5, 10, 15, 20].includes(rounds)) return;
+    room.totalRounds = rounds;
+    io.to('quiz:' + room.code).emit('quiz:rounds-updated', rounds);
+  });
+
+  socket.on('quiz:start-game', () => {
+    const room = quizRooms.get(socket.quizRoomCode);
+    if (!room || room.host !== socket.playerId) return;
+    const connectedCount = [...room.players.values()].filter(p => p.connected).length;
+    if (connectedCount < 2) {
+      socket.emit('quiz:error-msg', '최소 2명이 필요해요!');
+      return;
+    }
+
+    // 카운트다운 시작
+    room.status = 'countdown';
+    for (const [, p] of room.players) p.score = 0;
+    io.to('quiz:' + room.code).emit('quiz:countdown', 3);
+
+    let count = 3;
+    const cdInterval = setInterval(() => {
+      count--;
+      if (count <= 0) {
+        clearInterval(cdInterval);
+        // 첫 문제 출제
+        room.status = 'playing';
+        room.currentRound = 1;
+        room.answers = {};
+        room.roundWinner = null;
+        room.currentProblem = generateQuizProblem(room.difficulty);
+
+        io.to('quiz:' + room.code).emit('quiz:game-started', {
+          difficulty: room.difficulty,
+          totalRounds: room.totalRounds,
+          currentRound: room.currentRound,
+          problem: room.currentProblem,
+          players: [...room.players.values()].map(p => ({
+            name: p.name, emoji: p.emoji, score: p.score, connected: p.connected,
+          })),
+        });
+      } else {
+        io.to('quiz:' + room.code).emit('quiz:countdown', count);
+      }
+    }, 1000);
+  });
+
+  socket.on('quiz:submit-answer', (choice) => {
+    const room = quizRooms.get(socket.quizRoomCode);
+    if (!room || room.status !== 'playing') return;
+    const playerId = socket.playerId;
+    if (room.answers[playerId]) return; // 이미 답변함
+
+    const isCorrect = choice === room.currentProblem.answer;
+    room.answers[playerId] = { choice, correct: isCorrect, time: Date.now() };
+
+    // 모든 연결된 플레이어가 답변했는지 확인
+    const connectedPlayers = [...room.players.entries()].filter(([, p]) => p.connected);
+    const allAnswered = connectedPlayers.every(([pid]) => room.answers[pid]);
+
+    if (allAnswered) {
+      // 라운드 결과 처리
+      const correctAnswers = Object.entries(room.answers)
+        .filter(([, a]) => a.correct)
+        .sort((a, b) => a[1].time - b[1].time);
+
+      if (correctAnswers.length > 0) {
+        const winnerId = correctAnswers[0][0];
+        room.roundWinner = winnerId;
+        const winner = room.players.get(winnerId);
+        if (winner) winner.score++;
+      } else {
+        room.roundWinner = null;
+      }
+
+      room.status = 'roundResult';
+
+      // 각 플레이어의 답변 정보
+      const answersInfo = {};
+      for (const [pid, ans] of Object.entries(room.answers)) {
+        const p = room.players.get(pid);
+        answersInfo[pid] = { name: p ? p.name : '?', ...ans };
+      }
+
+      const roundWinnerPlayer = room.roundWinner ? room.players.get(room.roundWinner) : null;
+
+      io.to('quiz:' + room.code).emit('quiz:round-result', {
+        problem: room.currentProblem,
+        roundWinner: roundWinnerPlayer ? { name: roundWinnerPlayer.name, emoji: roundWinnerPlayer.emoji } : null,
+        answers: answersInfo,
+        players: [...room.players.values()].map(p => ({
+          name: p.name, emoji: p.emoji, score: p.score, connected: p.connected,
+        })),
+        currentRound: room.currentRound,
+        totalRounds: room.totalRounds,
+      });
+    }
+  });
+
+  socket.on('quiz:next-round', () => {
+    const room = quizRooms.get(socket.quizRoomCode);
+    if (!room || room.host !== socket.playerId) return;
+
+    if (room.currentRound >= room.totalRounds) {
+      // 게임 종료
+      room.status = 'finished';
+      const sorted = [...room.players.values()]
+        .map(p => ({ name: p.name, emoji: p.emoji, score: p.score }))
+        .sort((a, b) => b.score - a.score);
+
+      // 각 플레이어에게 개별 전송 (방장 여부 구분)
+      for (const [pid, p] of room.players) {
+        if (!p.connected) continue;
+        io.to(p.socketId).emit('quiz:game-finished', {
+          players: sorted,
+          isHost: pid === room.host,
+        });
+      }
+      return;
+    }
+
+    // 다음 문제
+    room.currentRound++;
+    room.answers = {};
+    room.roundWinner = null;
+    room.status = 'playing';
+    room.currentProblem = generateQuizProblem(room.difficulty);
+
+    io.to('quiz:' + room.code).emit('quiz:next-problem', {
+      currentRound: room.currentRound,
+      problem: room.currentProblem,
+      players: [...room.players.values()].map(p => ({
+        name: p.name, emoji: p.emoji, score: p.score, connected: p.connected,
+      })),
+    });
+  });
+
+  socket.on('quiz:play-again', () => {
+    const room = quizRooms.get(socket.quizRoomCode);
+    if (!room || room.host !== socket.playerId) return;
+
+    room.status = 'waiting';
+    room.currentProblem = null;
+    room.currentRound = 0;
+    room.answers = {};
+    room.roundWinner = null;
+    for (const [, p] of room.players) p.score = 0;
+
+    io.to('quiz:' + room.code).emit('quiz:game-reset');
+    emitQuizPlayerList(room);
+  });
+
+  // 퀴즈 disconnect 처리
+  socket.on('disconnect', () => {
+    const quizCode = socket.quizRoomCode;
+    if (!quizCode) return;
+    const room = quizRooms.get(quizCode);
+    if (!room) return;
+    const qPlayerId = socket.playerId;
+    const player = room.players.get(qPlayerId);
+    if (!player) return;
+
+    player.connected = false;
+    io.to('quiz:' + quizCode).emit('quiz:player-disconnected', { name: player.name });
+    emitQuizPlayerList(room);
+  });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🎱 빙고 게임 서버 시작!`);
+  console.log(`\n🎮 가족 게임 서버 시작!`);
   console.log(`   http://localhost:${PORT}`);
   console.log(`\n같은 Wi-Fi에 있는 기기에서 접속하려면:`);
   const os = require('os');

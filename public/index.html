@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>가족 빙고 게임</title>
+  <title>가족 게임</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -25,1065 +25,110 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      overflow-x: hidden;
+      justify-content: center;
+      padding: 16px;
     }
 
     h1 {
-      font-size: 1.8rem;
-      margin: 16px 0 8px;
+      font-size: 2rem;
+      margin-bottom: 8px;
       text-align: center;
     }
-    h1 .emoji { font-size: 2rem; }
 
-    /* ── 로비 ── */
-    .screen { display: none; width: 100%; max-width: 500px; padding: 16px; }
-    .screen.active { display: flex; flex-direction: column; align-items: center; }
-
-    .lobby-btn {
-      width: 100%;
-      max-width: 320px;
-      padding: 18px;
-      margin: 8px 0;
-      border: none;
-      border-radius: 16px;
-      font-size: 1.2rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: transform 0.15s, box-shadow 0.15s;
-    }
-    .lobby-btn:active { transform: scale(0.96); }
-    .btn-create { background: var(--accent); color: #fff; }
-    .btn-join { background: var(--accent2); color: #fff; }
-
-    input[type="text"] {
-      width: 100%;
-      max-width: 320px;
-      padding: 14px;
-      margin: 8px 0;
-      border: 2px solid #333;
-      border-radius: 12px;
-      font-size: 1.1rem;
-      text-align: center;
-      background: #0d1b2a;
-      color: #fff;
-      outline: none;
-    }
-    input[type="text"]:focus { border-color: var(--accent); }
-    input[type="text"]::placeholder { color: #666; }
-
-    /* ── 대기실 ── */
-    .room-code {
-      font-size: 2.5rem;
-      font-weight: 900;
-      letter-spacing: 8px;
-      color: var(--gold);
-      background: rgba(245, 197, 24, 0.1);
-      padding: 12px 32px;
-      border-radius: 16px;
-      margin: 12px 0;
-    }
-
-    .player-list {
-      list-style: none;
-      width: 100%;
-      max-width: 320px;
-    }
-    .player-list li {
-      padding: 12px 16px;
-      margin: 4px 0;
-      background: var(--card);
-      border-radius: 10px;
-      font-size: 1.1rem;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .player-list li.disconnected { opacity: 0.4; }
-    .player-list .crown::before { content: '\uD83D\uDC51'; }
-    .player-list .member::before { content: '\uD83C\uDFAE'; }
-
-    .btn-start {
-      margin-top: 16px;
-      padding: 16px 48px;
-      background: var(--green);
-      color: #000;
-      font-weight: 800;
-      font-size: 1.2rem;
-      border: none;
-      border-radius: 14px;
-      cursor: pointer;
-    }
-    .btn-start:active { transform: scale(0.96); }
-
-    .info-text {
+    .subtitle {
       color: #888;
       font-size: 0.95rem;
-      margin: 8px 0;
       text-align: center;
+      margin-bottom: 32px;
     }
 
-    /* ── 승리 줄 수 선택 ── */
-    .wl-selector {
+    .game-cards {
       display: flex;
-      gap: 8px;
-      justify-content: center;
-      margin: 8px 0;
-    }
-    .wl-btn {
-      padding: 10px 18px;
-      border: 2px solid #333;
-      border-radius: 10px;
-      background: var(--card);
-      color: var(--text);
-      font-size: 1rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .wl-btn.active {
-      border-color: var(--gold);
-      background: rgba(245, 197, 24, 0.15);
-      color: var(--gold);
-    }
-    .wl-btn:active { transform: scale(0.95); }
-
-    .nr-btn {
-      padding: 10px 18px;
-      border: 2px solid #333;
-      border-radius: 10px;
-      background: var(--card);
-      color: var(--text);
-      font-size: 1rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .nr-btn.active {
-      border-color: var(--green);
-      background: rgba(78, 204, 163, 0.15);
-      color: var(--green);
-    }
-    .nr-btn:active { transform: scale(0.95); }
-
-    /* ── 랭킹 ── */
-    .ranking-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 12px;
-      background: var(--card);
-      border-radius: 8px;
-      margin: 4px 0;
-      font-size: 0.95rem;
-    }
-    .ranking-item .rank-name { flex: 1; }
-    .ranking-item .rank-stats { color: var(--gold); font-weight: 700; }
-    .ranking-item .rank-streak { color: var(--accent); font-size: 0.8rem; margin-left: 8px; }
-
-    /* ── 게임 화면 ── */
-    .game-header {
+      flex-direction: column;
+      gap: 16px;
       width: 100%;
-      max-width: 500px;
-      text-align: center;
-      padding: 8px;
-    }
-
-    .turn-indicator {
-      font-size: 1.15rem;
-      font-weight: 700;
-      padding: 10px;
-      border-radius: 12px;
-      margin: 6px 0;
-      transition: background 0.3s;
-    }
-    .turn-mine {
-      background: var(--accent);
-      animation: pulse 1s infinite;
-    }
-    .turn-other { background: var(--accent2); }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.7; }
-    }
-
-    .called-numbers {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      justify-content: center;
-      margin: 8px 0;
-      min-height: 36px;
-    }
-    .called-num {
-      width: 34px;
-      height: 34px;
-      border-radius: 50%;
-      background: var(--accent2);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: 0.85rem;
-    }
-    .called-num.latest {
-      background: var(--accent);
-      transform: scale(1.2);
-    }
-
-    .scoreboard {
-      display: flex;
-      gap: 12px;
-      justify-content: center;
-      margin: 8px 0;
-      flex-wrap: wrap;
-    }
-    .score-card {
-      background: var(--card);
-      padding: 8px 16px;
-      border-radius: 10px;
-      text-align: center;
-      min-width: 80px;
-    }
-    .score-card.me { border: 2px solid var(--gold); }
-    .score-card.disconnected { opacity: 0.4; }
-    .score-name { font-size: 0.85rem; color: #aaa; }
-    .score-lines { font-size: 1.4rem; font-weight: 800; color: var(--gold); }
-    .score-label { font-size: 0.7rem; color: #888; }
-
-    /* ── 빙고판 ── */
-    .board-container {
-      width: 100%;
-      max-width: 400px;
-      padding: 8px;
-    }
-
-    .bingo-board {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 6px;
-      width: 100%;
-      aspect-ratio: 1;
-    }
-
-    .cell {
-      aspect-ratio: 1;
-      border: none;
-      border-radius: 12px;
-      font-size: 1.6rem;
-      font-weight: 800;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--card);
-      color: var(--text);
-      position: relative;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .cell.marked {
-      background: var(--accent);
-      color: #fff;
-      transform: scale(0.92);
-    }
-    .cell.bingo-line {
-      background: var(--gold);
-      color: #000;
-      box-shadow: 0 0 12px rgba(245, 197, 24, 0.5);
-    }
-    .cell:not(.marked):not([disabled]):hover {
-      background: #1e3a5f;
-    }
-    .cell:not(.marked):not([disabled]):active {
-      transform: scale(0.9);
-    }
-    .cell[disabled] {
-      cursor: default;
-    }
-
-    /* ── 승리 모달 ── */
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.8);
-      z-index: 100;
-      align-items: center;
-      justify-content: center;
-    }
-    .modal-overlay.active { display: flex; }
-
-    .modal {
-      background: var(--card);
-      border-radius: 24px;
-      padding: 32px;
-      text-align: center;
       max-width: 360px;
-      width: 90%;
-      animation: modalPop 0.4s ease;
     }
-    @keyframes modalPop {
-      0% { transform: scale(0.5); opacity: 0; }
-      100% { transform: scale(1); opacity: 1; }
+
+    .game-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 24px;
+      background: var(--card);
+      border-radius: 20px;
+      text-decoration: none;
+      color: var(--text);
+      transition: transform 0.15s, box-shadow 0.15s;
+      border: 2px solid transparent;
     }
-    .modal .winner-emoji { font-size: 4rem; margin-bottom: 12px; }
-    .modal .winner-name {
-      font-size: 1.8rem;
-      font-weight: 900;
-      color: var(--gold);
-      margin-bottom: 8px;
+
+    .game-card:hover {
+      transform: scale(1.03);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
     }
-    .modal .winner-msg { font-size: 1.1rem; color: #ccc; margin-bottom: 20px; }
-    .btn-new-game {
-      padding: 14px 40px;
-      background: var(--green);
-      color: #000;
+
+    .game-card:active {
+      transform: scale(0.97);
+    }
+
+    .game-card.bingo {
+      border-color: var(--accent);
+    }
+
+    .game-card.quiz {
+      border-color: var(--green);
+    }
+
+    .game-icon {
+      font-size: 3rem;
+      flex-shrink: 0;
+    }
+
+    .game-info {
+      flex: 1;
+    }
+
+    .game-title {
+      font-size: 1.3rem;
       font-weight: 800;
-      font-size: 1.1rem;
-      border: none;
-      border-radius: 14px;
-      cursor: pointer;
+      margin-bottom: 4px;
     }
 
-    /* ── 토스트 ── */
-    .toast {
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--accent);
-      color: #fff;
-      padding: 12px 24px;
-      border-radius: 12px;
-      font-weight: 600;
-      z-index: 200;
-      animation: toastIn 0.3s, toastOut 0.3s 2s forwards;
-    }
-    @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(20px); } }
-    @keyframes toastOut { to { opacity: 0; transform: translateX(-50%) translateY(20px); } }
-
-    /* ── 반응형 ── */
-    @media (max-width: 360px) {
-      .cell { font-size: 1.3rem; border-radius: 8px; }
-      .bingo-board { gap: 4px; }
-      h1 { font-size: 1.4rem; }
-    }
-
-    .sub-text { color: #888; font-size: 0.85rem; margin: 4px 0; }
-
-    .back-btn {
-      background: none;
-      border: 1px solid #555;
-      color: #aaa;
-      padding: 8px 20px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 0.9rem;
-      margin: 8px 0;
-    }
-
-    .btn-restart {
-      background: none;
-      border: 1px solid var(--accent);
-      color: var(--accent);
-      padding: 6px 16px;
-      border-radius: 8px;
-      cursor: pointer;
+    .game-desc {
       font-size: 0.85rem;
-      margin: 4px 0;
+      color: #aaa;
+      line-height: 1.4;
+    }
+
+    .game-arrow {
+      font-size: 1.2rem;
+      color: #555;
     }
   </style>
 </head>
 <body>
+  <h1>🎮 가족 게임</h1>
+  <p class="subtitle">함께 즐기는 멀티플레이 게임!</p>
 
-  <!-- 메인 로비 -->
-  <div id="screen-lobby" class="screen active">
-    <h1><span class="emoji">🎱</span> 가족 빙고</h1>
-    <p class="sub-text">5x5 숫자 빙고 | 함께 즐기는 가족 게임!</p>
-
-    <input type="text" id="input-name" placeholder="이름을 입력하세요" maxlength="8">
-
-    <button class="lobby-btn btn-create" onclick="createRoom()">
-      🏠 방 만들기
-    </button>
-
-    <div style="display:flex; gap:8px; width:100%; max-width:320px; align-items:center; margin:4px 0;">
-      <input type="text" id="input-code" placeholder="방 코드" maxlength="4"
-             style="flex:1; text-transform:uppercase; letter-spacing:4px; font-weight:700;">
-      <button class="lobby-btn btn-join" onclick="joinRoom()"
-              style="width:auto; flex:0 0 auto; padding:14px 24px;">
-        참가
-      </button>
-    </div>
-  </div>
-
-  <!-- 대기실 -->
-  <div id="screen-waiting" class="screen">
-    <h1>🎱 대기실</h1>
-    <p class="info-text">아래 코드를 다른 기기에서 입력하세요!</p>
-    <div class="room-code" id="display-code">----</div>
-
-    <!-- 승리 줄 수 선택 (방장용) -->
-    <div id="win-lines-host" style="display:none; margin:8px 0; text-align:center;">
-      <p style="color:#aaa; font-size:0.9rem; margin-bottom:6px;">승리 조건</p>
-      <div class="wl-selector">
-        <button class="wl-btn" data-lines="2" onclick="setWinLines(2)">2줄</button>
-        <button class="wl-btn active" data-lines="3" onclick="setWinLines(3)">3줄</button>
-        <button class="wl-btn" data-lines="4" onclick="setWinLines(4)">4줄</button>
-        <button class="wl-btn" data-lines="5" onclick="setWinLines(5)">5줄</button>
+  <div class="game-cards">
+    <a href="/bingo.html" class="game-card bingo">
+      <span class="game-icon">🎱</span>
+      <div class="game-info">
+        <div class="game-title">빙고 게임</div>
+        <div class="game-desc">5x5 숫자 빙고 대결!<br>먼저 줄을 완성하면 승리</div>
       </div>
-    </div>
+      <span class="game-arrow">→</span>
+    </a>
 
-    <!-- 숫자 범위 선택 (방장용) -->
-    <div id="number-range-host" style="display:none; margin:8px 0; text-align:center;">
-      <p style="color:#aaa; font-size:0.9rem; margin-bottom:6px;">숫자 범위</p>
-      <div class="wl-selector">
-        <button class="nr-btn active" data-range="25" onclick="setNumberRange(25)">1~25</button>
-        <button class="nr-btn" data-range="50" onclick="setNumberRange(50)">1~50</button>
-        <button class="nr-btn" data-range="75" onclick="setNumberRange(75)">1~75</button>
+    <a href="/quiz.html" class="game-card quiz">
+      <span class="game-icon">🧮</span>
+      <div class="game-info">
+        <div class="game-title">수학 퀴즈</div>
+        <div class="game-desc">덧셈 뺄셈 속도 대결!<br>빨리 맞힌 사람이 점수 획득</div>
       </div>
-    </div>
-
-    <!-- 설정 표시 (비방장용) -->
-    <p id="settings-guest" class="info-text" style="display:none;">
-      승리 조건: <strong id="win-lines-value">3</strong>줄 | 숫자: <strong id="number-range-value">1~25</strong>
-    </p>
-
-    <ul class="player-list" id="player-list"></ul>
-
-    <!-- 랭킹 -->
-    <div id="rankings-section" style="display:none; width:100%; max-width:320px; margin-top:12px;">
-      <p style="text-align:center; color:#aaa; font-size:0.9rem; margin-bottom:6px;">🏆 랭킹</p>
-      <div id="rankings-list"></div>
-    </div>
-
-    <button class="btn-start" id="btn-start" style="display:none" onclick="startGame()">
-      게임 시작! 🎉
-    </button>
-    <p class="info-text" id="waiting-msg">방장이 게임을 시작할 때까지 기다려주세요...</p>
-    <button class="back-btn" onclick="leaveRoom()">나가기</button>
+      <span class="game-arrow">→</span>
+    </a>
   </div>
-
-  <!-- 게임 화면 -->
-  <div id="screen-game" class="screen">
-    <div class="game-header">
-      <div class="turn-indicator" id="turn-indicator">내 차례!</div>
-
-      <div class="scoreboard" id="scoreboard"></div>
-
-      <div class="called-numbers" id="called-numbers"></div>
-
-      <button class="btn-restart" id="btn-restart" style="display:none" onclick="restartGame()">
-        게임 재시작
-      </button>
-    </div>
-
-    <div class="board-container">
-      <div class="bingo-board" id="bingo-board"></div>
-    </div>
-  </div>
-
-  <!-- 승리 모달 -->
-  <div class="modal-overlay" id="modal-win">
-    <div class="modal">
-      <div class="winner-emoji" id="win-emoji">🏆</div>
-      <div class="winner-name" id="win-name">-</div>
-      <div class="winner-msg" id="win-msg">빙고!</div>
-      <div id="win-rankings" style="margin:12px 0;"></div>
-      <button class="btn-new-game" id="btn-new-game" style="display:none" onclick="newGame()">
-        한 판 더! 🎲
-      </button>
-      <button class="back-btn" onclick="closeModal()" style="margin-top:8px;">닫기</button>
-    </div>
-  </div>
-
-  <script src="/socket.io/socket.io.js"></script>
-  <script>
-    const socket = io();
-
-    let myBoard = null;
-    let myMarked = null;
-    let myTurnIndex = -1;
-    let currentTurn = 0;
-    let turnNames = [];
-    let calledNumbers = [];
-    let isHost = false;
-    let gameActive = false;
-    let winLines = 3;
-    let numberRange = 25;
-    let myPrevBingoLines = 0;
-
-    // ── 플레이어 식별 (localStorage) ──
-    let playerId = localStorage.getItem('bingo-player-id') || null;
-    let savedRoomCode = localStorage.getItem('bingo-room-code') || null;
-    let savedPlayerName = localStorage.getItem('bingo-player-name') || null;
-
-    // ── Web Audio API 효과음 ──
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    let audioCtx = null;
-
-    function getAudioCtx() {
-      if (!audioCtx) audioCtx = new AudioCtx();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      return audioCtx;
-    }
-
-    function playDing() {
-      const ctx = getAudioCtx();
-      const t = ctx.currentTime;
-      [523, 659].forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, t + i * 0.15);
-        gain.gain.setValueAtTime(0.3, t + i * 0.15);
-        gain.gain.exponentialRampToValueAtTime(0.01, t + i * 0.15 + 0.3);
-        osc.start(t + i * 0.15);
-        osc.stop(t + i * 0.15 + 0.3);
-      });
-    }
-
-    function playClick() {
-      const ctx = getAudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(800, ctx.currentTime);
-      gain.gain.setValueAtTime(0.15, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.08);
-    }
-
-    function playBingoLine() {
-      const ctx = getAudioCtx();
-      const t = ctx.currentTime;
-      [523, 659, 784].forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, t + i * 0.12);
-        gain.gain.setValueAtTime(0.25, t + i * 0.12);
-        gain.gain.exponentialRampToValueAtTime(0.01, t + i * 0.12 + 0.3);
-        osc.start(t + i * 0.12);
-        osc.stop(t + i * 0.12 + 0.3);
-      });
-    }
-
-    function playFanfare() {
-      const ctx = getAudioCtx();
-      const t = ctx.currentTime;
-      const chords = [
-        [523, 659, 784],
-        [587, 740, 880],
-        [523, 659, 784, 1047],
-      ];
-      chords.forEach((chord, ci) => {
-        chord.forEach(freq => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(freq, t + ci * 0.3);
-          gain.gain.setValueAtTime(0.15, t + ci * 0.3);
-          gain.gain.exponentialRampToValueAtTime(0.01, t + ci * 0.3 + 0.5);
-          osc.start(t + ci * 0.3);
-          osc.stop(t + ci * 0.3 + 0.5);
-        });
-      });
-    }
-
-    // ── 화면 전환 ──
-    function showScreen(id) {
-      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-      document.getElementById(id).classList.add('active');
-    }
-
-    // ── 토스트 ──
-    function showToast(msg) {
-      const t = document.createElement('div');
-      t.className = 'toast';
-      t.textContent = msg;
-      document.body.appendChild(t);
-      setTimeout(() => t.remove(), 2500);
-    }
-
-    // ── 로비 ──
-    function createRoom() {
-      const name = document.getElementById('input-name').value.trim();
-      if (!name) { showToast('이름을 입력해주세요!'); return; }
-      getAudioCtx();
-      isHost = true;
-      socket.emit('create-room', { playerName: name, playerId });
-    }
-
-    function joinRoom() {
-      const name = document.getElementById('input-name').value.trim();
-      const code = document.getElementById('input-code').value.trim().toUpperCase();
-      if (!name) { showToast('이름을 입력해주세요!'); return; }
-      if (!code || code.length < 4) { showToast('방 코드를 입력해주세요!'); return; }
-      getAudioCtx();
-      socket.emit('join-room', { code, playerName: name, playerId });
-    }
-
-    function leaveRoom() {
-      localStorage.removeItem('bingo-room-code');
-      location.reload();
-    }
-
-    function startGame() {
-      socket.emit('start-game');
-    }
-
-    function newGame() {
-      socket.emit('new-game');
-      document.getElementById('modal-win').classList.remove('active');
-    }
-
-    function closeModal() {
-      document.getElementById('modal-win').classList.remove('active');
-    }
-
-    function setWinLines(lines) {
-      socket.emit('set-win-lines', lines);
-    }
-
-    function setNumberRange(range) {
-      socket.emit('set-number-range', range);
-    }
-
-    function restartGame() {
-      if (!isHost) return;
-      if (confirm('정말 게임을 재시작하시겠어요?')) {
-        socket.emit('new-game');
-      }
-    }
-
-    // ── Socket 이벤트 ──
-    socket.on('room-created', ({ code, playerName, playerId: pid }) => {
-      playerId = pid;
-      localStorage.setItem('bingo-player-id', pid);
-      localStorage.setItem('bingo-room-code', code);
-      localStorage.setItem('bingo-player-name', playerName);
-      isHost = true;
-      document.getElementById('display-code').textContent = code;
-      showScreen('screen-waiting');
-    });
-
-    socket.on('room-joined', ({ code, playerName, playerId: pid, isHost: host }) => {
-      playerId = pid;
-      localStorage.setItem('bingo-player-id', pid);
-      localStorage.setItem('bingo-room-code', code);
-      localStorage.setItem('bingo-player-name', playerName);
-      isHost = host;
-      document.getElementById('display-code').textContent = code;
-      showScreen('screen-waiting');
-    });
-
-    socket.on('player-list', ({ players, code, winLines: wl, numberRange: nr, rankings }) => {
-      // 플레이어 목록
-      const list = document.getElementById('player-list');
-      list.innerHTML = '';
-      let connectedCount = 0;
-      players.forEach(p => {
-        if (p.connected) connectedCount++;
-        const li = document.createElement('li');
-        if (!p.connected) li.classList.add('disconnected');
-        li.innerHTML = `<span class="${p.isHost ? 'crown' : 'member'}"></span> ${escHtml(p.name)} ${p.isHost ? '<span style="color:#888;font-size:0.8rem">(방장)</span>' : ''} ${!p.connected ? '<span style="color:#888;font-size:0.8rem">(끊김)</span>' : ''}`;
-        list.appendChild(li);
-      });
-
-      // 설정 표시
-      winLines = wl;
-      numberRange = nr || 25;
-      if (isHost) {
-        document.getElementById('win-lines-host').style.display = 'block';
-        document.getElementById('number-range-host').style.display = 'block';
-        document.getElementById('settings-guest').style.display = 'none';
-        document.querySelectorAll('.wl-btn').forEach(btn => {
-          btn.classList.toggle('active', parseInt(btn.dataset.lines) === wl);
-        });
-        document.querySelectorAll('.nr-btn').forEach(btn => {
-          btn.classList.toggle('active', parseInt(btn.dataset.range) === numberRange);
-        });
-      } else {
-        document.getElementById('win-lines-host').style.display = 'none';
-        document.getElementById('number-range-host').style.display = 'none';
-        document.getElementById('settings-guest').style.display = 'block';
-        document.getElementById('win-lines-value').textContent = wl;
-        document.getElementById('number-range-value').textContent = `1~${numberRange}`;
-      }
-
-      // 시작 버튼
-      const btnStart = document.getElementById('btn-start');
-      const waitMsg = document.getElementById('waiting-msg');
-      if (isHost && connectedCount >= 2) {
-        btnStart.style.display = 'block';
-        waitMsg.style.display = 'none';
-      } else if (isHost) {
-        btnStart.style.display = 'none';
-        waitMsg.textContent = '다른 플레이어를 기다리는 중...';
-        waitMsg.style.display = 'block';
-      } else {
-        btnStart.style.display = 'none';
-        waitMsg.textContent = '방장이 게임을 시작할 때까지 기다려주세요...';
-        waitMsg.style.display = 'block';
-      }
-
-      // 랭킹
-      renderRankings(rankings);
-    });
-
-    socket.on('win-lines-updated', (lines) => {
-      winLines = lines;
-      document.querySelectorAll('.wl-btn').forEach(btn => {
-        btn.classList.toggle('active', parseInt(btn.dataset.lines) === lines);
-      });
-      document.getElementById('win-lines-value').textContent = lines;
-      showToast(`승리 조건이 ${lines}줄로 변경되었어요!`);
-    });
-
-    socket.on('number-range-updated', (range) => {
-      numberRange = range;
-      document.querySelectorAll('.nr-btn').forEach(btn => {
-        btn.classList.toggle('active', parseInt(btn.dataset.range) === range);
-      });
-      document.getElementById('number-range-value').textContent = `1~${range}`;
-      showToast(`숫자 범위가 1~${range}으로 변경되었어요!`);
-    });
-
-    socket.on('game-started', ({ board, turnOrder, myTurnIndex: mti, currentTurn: ct, winLines: wl, numberRange: nr, isHost: host }) => {
-      myBoard = board;
-      myMarked = Array.from({ length: 5 }, () => Array(5).fill(false));
-      myTurnIndex = mti;
-      currentTurn = ct;
-      turnNames = turnOrder;
-      calledNumbers = [];
-      gameActive = true;
-      winLines = wl;
-      numberRange = nr || 25;
-      isHost = host;
-      myPrevBingoLines = 0;
-
-      showScreen('screen-game');
-      renderBoard();
-      renderTurn();
-      renderScoreboard([]);
-      document.getElementById('called-numbers').innerHTML = '';
-      document.getElementById('btn-restart').style.display = isHost ? 'inline-block' : 'none';
-
-      if (myTurnIndex === 0) {
-        playDing();
-      }
-    });
-
-    socket.on('game-restored', (data) => {
-      myBoard = data.board;
-      myMarked = data.marked;
-      myTurnIndex = data.myTurnIndex;
-      currentTurn = data.currentTurn;
-      turnNames = data.turnOrder;
-      calledNumbers = data.calledNumbers;
-      winLines = data.winLines;
-      isHost = data.isHost;
-      myPrevBingoLines = data.bingoLines;
-      gameActive = !data.winner;
-
-      showScreen('screen-game');
-      renderBoard();
-      renderTurn();
-      renderCalledNumbers();
-      renderScoreboard(data.playerStates);
-      document.getElementById('btn-restart').style.display = isHost ? 'inline-block' : 'none';
-
-      if (data.winner) {
-        showWinner(data.winner);
-      }
-
-      showToast('게임에 다시 접속했어요!');
-    });
-
-    socket.on('number-called', (data) => {
-      myMarked = data.myMarked;
-      calledNumbers = data.calledNumbers;
-      currentTurn = data.currentTurn;
-
-      renderBoard();
-      renderTurn();
-      renderCalledNumbers();
-      renderScoreboard(data.playerStates);
-
-      // 빙고 줄 완성 효과음
-      if (data.myBingoLines > myPrevBingoLines) {
-        playBingoLine();
-      }
-      myPrevBingoLines = data.myBingoLines;
-
-      // 내 차례 알림
-      if (!data.winner && currentTurn === myTurnIndex) {
-        playDing();
-      }
-
-      if (data.winner) {
-        gameActive = false;
-        playFanfare();
-        showWinner(data.winner, data.rankings);
-      }
-    });
-
-    socket.on('turn-updated', ({ currentTurn: ct }) => {
-      currentTurn = ct;
-      renderTurn();
-      renderBoard();
-      if (currentTurn === myTurnIndex && gameActive) {
-        playDing();
-      }
-    });
-
-    socket.on('game-reset', () => {
-      gameActive = false;
-      myPrevBingoLines = 0;
-      document.getElementById('modal-win').classList.remove('active');
-      showScreen('screen-waiting');
-    });
-
-    socket.on('player-disconnected', ({ name }) => {
-      showToast(`${name} 님의 연결이 끊겼어요`);
-    });
-
-    socket.on('player-reconnected', ({ name }) => {
-      showToast(`${name} 님이 다시 접속했어요!`);
-    });
-
-    socket.on('error-msg', (msg) => {
-      showToast(msg);
-    });
-
-    // ── 페이지 로드 시 자동 재접속 ──
-    window.addEventListener('load', () => {
-      if (playerId && savedRoomCode && savedPlayerName) {
-        getAudioCtx();
-        socket.emit('join-room', {
-          code: savedRoomCode,
-          playerName: savedPlayerName,
-          playerId,
-        });
-      }
-
-      // 뒤로가기 방지
-      history.pushState(null, '', location.href);
-      window.addEventListener('popstate', () => {
-        if (gameActive) {
-          history.pushState(null, '', location.href);
-          showToast('게임 중에는 뒤로 갈 수 없어요!');
-        }
-      });
-    });
-
-    // ── 새로고침 방지 ──
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'F5' || (e.ctrlKey && (e.key === 'r' || e.key === 'R'))) {
-        if (gameActive) {
-          e.preventDefault();
-          showToast('게임 중에는 새로고침할 수 없어요!');
-        }
-      }
-    });
-
-    window.addEventListener('beforeunload', (e) => {
-      if (gameActive) {
-        e.preventDefault();
-        e.returnValue = '';
-      }
-    });
-
-    // ── 렌더링 ──
-    function renderBoard() {
-      const boardEl = document.getElementById('bingo-board');
-      boardEl.innerHTML = '';
-
-      const bingoSet = getBingoCells(myMarked);
-      const isMyTurn = gameActive && (currentTurn === myTurnIndex);
-
-      for (let r = 0; r < 5; r++) {
-        for (let c = 0; c < 5; c++) {
-          const btn = document.createElement('button');
-          btn.className = 'cell';
-          btn.textContent = myBoard[r][c];
-
-          if (myMarked[r][c]) {
-            btn.classList.add('marked');
-            if (bingoSet.has(`${r},${c}`)) {
-              btn.classList.add('bingo-line');
-            }
-          }
-
-          const num = myBoard[r][c];
-          if (!calledNumbers.includes(num) && isMyTurn && gameActive) {
-            btn.addEventListener('click', () => callNumber(num));
-          } else {
-            btn.disabled = true;
-          }
-
-          boardEl.appendChild(btn);
-        }
-      }
-    }
-
-    function callNumber(num) {
-      if (!gameActive) return;
-      playClick();
-      socket.emit('call-number', num);
-    }
-
-    function renderTurn() {
-      const el = document.getElementById('turn-indicator');
-      if (!gameActive) {
-        el.textContent = '게임 종료';
-        el.className = 'turn-indicator turn-other';
-        return;
-      }
-      if (currentTurn === myTurnIndex) {
-        el.textContent = '🎯 내 차례! 숫자를 터치하세요!';
-        el.className = 'turn-indicator turn-mine';
-      } else {
-        el.textContent = `⏳ ${turnNames[currentTurn]} 님 차례...`;
-        el.className = 'turn-indicator turn-other';
-      }
-    }
-
-    function renderCalledNumbers() {
-      const el = document.getElementById('called-numbers');
-      el.innerHTML = '';
-      calledNumbers.forEach((n, i) => {
-        const span = document.createElement('span');
-        span.className = 'called-num' + (i === calledNumbers.length - 1 ? ' latest' : '');
-        span.textContent = n;
-        el.appendChild(span);
-      });
-    }
-
-    function renderScoreboard(playerStates) {
-      const el = document.getElementById('scoreboard');
-      if (!playerStates || playerStates.length === 0) {
-        el.innerHTML = '';
-        turnNames.forEach((name, i) => {
-          el.innerHTML += `
-            <div class="score-card ${i === myTurnIndex ? 'me' : ''}">
-              <div class="score-name">${escHtml(name)}</div>
-              <div class="score-lines">0</div>
-              <div class="score-label">줄</div>
-            </div>`;
-        });
-        return;
-      }
-      el.innerHTML = '';
-      playerStates.forEach(ps => {
-        el.innerHTML += `
-          <div class="score-card ${ps.isMe ? 'me' : ''} ${ps.connected === false ? 'disconnected' : ''}">
-            <div class="score-name">${escHtml(ps.name)}</div>
-            <div class="score-lines">${ps.bingoLines}</div>
-            <div class="score-label">줄</div>
-          </div>`;
-      });
-    }
-
-    function renderRankings(rankings) {
-      const section = document.getElementById('rankings-section');
-      const listEl = document.getElementById('rankings-list');
-      if (!rankings || rankings.length === 0) {
-        section.style.display = 'none';
-        return;
-      }
-      section.style.display = 'block';
-      listEl.innerHTML = '';
-      const medals = ['🥇', '🥈', '🥉'];
-      rankings.forEach((r, i) => {
-        const medal = medals[i] || '';
-        const streakText = r.currentStreak >= 2 ? `${r.currentStreak}연승!` : '';
-        listEl.innerHTML += `
-          <div class="ranking-item">
-            <span class="rank-name">${medal} ${escHtml(r.name)}</span>
-            <span class="rank-stats">${r.wins}승 ${r.losses}패</span>
-            ${streakText ? `<span class="rank-streak">${streakText}</span>` : ''}
-          </div>`;
-      });
-    }
-
-    function showWinner(winner, rankings) {
-      const emojis = ['🏆', '🎉', '🥳', '⭐', '👑'];
-      document.getElementById('win-emoji').textContent = emojis[Math.floor(Math.random() * emojis.length)];
-      document.getElementById('win-name').textContent = winner.name;
-      document.getElementById('win-msg').textContent = `${winner.lines}줄 빙고 달성! 축하해요!`;
-
-      // 모달 내 랭킹
-      const winRankEl = document.getElementById('win-rankings');
-      if (rankings && rankings.length > 0) {
-        const medals = ['🥇', '🥈', '🥉'];
-        winRankEl.innerHTML = '<p style="color:#aaa; font-size:0.85rem; margin-bottom:6px;">현재 전적</p>';
-        rankings.forEach((r, i) => {
-          const medal = medals[i] || '';
-          const streakText = r.currentStreak >= 2 ? ` ${r.currentStreak}연승!` : '';
-          winRankEl.innerHTML += `
-            <div class="ranking-item">
-              <span class="rank-name">${medal} ${escHtml(r.name)}</span>
-              <span class="rank-stats">${r.wins}승 ${r.losses}패</span>
-              ${streakText ? `<span class="rank-streak">${streakText}</span>` : ''}
-            </div>`;
-        });
-      } else {
-        winRankEl.innerHTML = '';
-      }
-
-      document.getElementById('btn-new-game').style.display = isHost ? 'inline-block' : 'none';
-      document.getElementById('modal-win').classList.add('active');
-    }
-
-    // 빙고 완성된 셀 집합 반환
-    function getBingoCells(marked) {
-      const cells = new Set();
-      for (let r = 0; r < 5; r++) {
-        if (marked[r].every(v => v)) {
-          for (let c = 0; c < 5; c++) cells.add(`${r},${c}`);
-        }
-      }
-      for (let c = 0; c < 5; c++) {
-        let ok = true;
-        for (let r = 0; r < 5; r++) { if (!marked[r][c]) { ok = false; break; } }
-        if (ok) { for (let r = 0; r < 5; r++) cells.add(`${r},${c}`); }
-      }
-      let d1 = true, d2 = true;
-      for (let i = 0; i < 5; i++) {
-        if (!marked[i][i]) d1 = false;
-        if (!marked[i][4 - i]) d2 = false;
-      }
-      if (d1) { for (let i = 0; i < 5; i++) cells.add(`${i},${i}`); }
-      if (d2) { for (let i = 0; i < 5; i++) cells.add(`${i},${4 - i}`); }
-      return cells;
-    }
-
-    function escHtml(s) {
-      const d = document.createElement('div');
-      d.textContent = s;
-      return d.innerHTML;
-    }
-
-    // 엔터키로 참가
-    document.getElementById('input-code').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') joinRoom();
-    });
-    document.getElementById('input-name').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') document.getElementById('input-code').focus();
-    });
-  </script>
 </body>
 </html>
